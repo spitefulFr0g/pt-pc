@@ -2,6 +2,7 @@
 #include "session.h"
 #include "preparation.h"
 #include "settings_dialog.h"
+#include "readiness.h"
 #include <QApplication>
 #include <QFileDialog>
 #include <QDesktopServices>
@@ -79,8 +80,8 @@ protected:
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     std::vector<pt::launcher::SupportedRuntime> supported;
-    if (QString(PT_SUPPORTED_LINUX_SHA256).size() == 64) supported.push_back({"linux", PT_SUPPORTED_LINUX_SHA256, "bundled"});
-    if (QString(PT_SUPPORTED_WINDOWS_SHA256).size() == 64) supported.push_back({"windows", PT_SUPPORTED_WINDOWS_SHA256, "bundled"});
+    if (QString(PT_SUPPORTED_LINUX_SHA256).size() == 64) supported.push_back({"linux", PT_SUPPORTED_LINUX_SHA256, "bundled", PT_SUPPORTED_LINUX_VR != 0});
+    if (QString(PT_SUPPORTED_WINDOWS_SHA256).size() == 64) supported.push_back({"windows", PT_SUPPORTED_WINDOWS_SHA256, "bundled", PT_SUPPORTED_WINDOWS_VR != 0});
     std::filesystem::path chosen;
     std::optional<pt::launcher::BundleInspection> cachedInspection;
     QString lastFailure;
@@ -108,7 +109,7 @@ int main(int argc, char** argv) {
     if (argc == 5 && QString::fromLocal8Bit(argv[1]).startsWith("--test-") && QString::fromLocal8Bit(argv[3]) == "--test-supported-sha256") {
         testMode = QString::fromLocal8Bit(argv[1]);
         chosen = std::filesystem::path(QString::fromLocal8Bit(argv[2]).toStdU32String());
-        supported.push_back({"linux", argv[4], "fixture"});
+        if (testMode != "--test-flat-unknown-control") supported.push_back({"linux", argv[4], "fixture", true});
     }
 #endif
     const QString assets = QCoreApplication::applicationDirPath() + "/assets/";
@@ -127,10 +128,13 @@ int main(int argc, char** argv) {
     controls->addWidget(new QLabel("A quiet place to return.")); controls->addStretch();
     auto* warning = new QLabel("Choose your P.T. .pkg in Game files, or drop it here."); warning->setObjectName("warning"); warning->setWordWrap(true); controls->addWidget(warning);
     auto* play = new QPushButton("Play"); play->setObjectName("play"); play->setEnabled(false); controls->addWidget(play);
+    auto* flatReadinessLabel = new QLabel; flatReadinessLabel->setWordWrap(true); controls->addWidget(flatReadinessLabel);
     auto* resume = new QPushButton("Return to game"); resume->setObjectName("returnToGame"); resume->hide(); controls->addWidget(resume);
     auto* retry = new QPushButton("Retry"); retry->hide(); controls->addWidget(retry);
     auto* logButton = new QPushButton("Open game log"); logButton->hide(); controls->addWidget(logButton);
     auto* vr = new QPushButton("Play in VR"); vr->setEnabled(false); controls->addWidget(vr);
+    auto* vrReadiness = new QLabel; vrReadiness->setWordWrap(true); controls->addWidget(vrReadiness);
+    auto* retryVr = new QPushButton("Retry VR readiness"); retryVr->hide(); controls->addWidget(retryVr);
     auto* settings = new QPushButton("Settings"); settings->setObjectName("settings"); settings->setEnabled(false); controls->addWidget(settings);
     auto* files = new QPushButton("Game files — choose .pkg"); controls->addWidget(files);
     auto* folderFiles = new QPushButton("Import extracted game folder"); controls->addWidget(folderFiles);
@@ -140,6 +144,9 @@ int main(int argc, char** argv) {
     auto* updates = new QPushButton("Updates"); updates->setEnabled(false); controls->addWidget(updates);
     auto* details = new QLabel; details->setWordWrap(true); controls->addWidget(details);
     bool preparing = false, closeAfterPreparation = false, preparationLog = false, recoveryBlocked = false;
+    bool readinessPending = false, launchPending = false;
+    pt::launcher::ModeReadiness flatReadiness, vrModeReadiness;
+    QThread* readinessThread = nullptr;
     auto cancelRequested = std::make_shared<std::atomic<bool>>(false);
     QThread* preparationThread = nullptr;
     QPointer<QMessageBox> cancelPrompt;
@@ -147,7 +154,13 @@ int main(int argc, char** argv) {
     QPointer<QWidget> preparationPromptFocus;
     bool preparationPromptProgressSeen = false;
 #endif
-    auto refresh = [&] {
+    std::function<void()> refresh;
+    auto readinessText = [](const QString& mode, const pt::launcher::ModeReadiness& state) {
+        QString label = state.state == pt::launcher::ReadinessState::Ready ? "Ready" :
+            state.state == pt::launcher::ReadinessState::Blocked ? "Blocked" : "Unknown";
+        return mode + ": " + label + " — " + state.explanation;
+    };
+    refresh = [&] {
         if (chosen.empty() || preparing) return;
         auto session = pt::launcher::InspectSession(chosen);
         if (previousRunning && session.activity == pt::launcher::Activity::Stopped) {
@@ -158,7 +171,30 @@ int main(int argc, char** argv) {
         const bool pendingPreparation = pt::launcher::PreparationNeedsRecovery(chosen);
         if (recoveryBlocked && !pendingPreparation) { cachedInspection.reset(); retry->hide(); }
         recoveryBlocked = pendingPreparation;
-        if (!cachedInspection) cachedInspection = pt::launcher::InspectBundle(chosen, supported);
+        if (!cachedInspection) {
+            play->setEnabled(false); vr->setEnabled(false);
+            vrReadiness->setText("Checking VR prerequisites…");
+            if (!readinessPending) {
+                readinessPending = true;
+                const auto bundle = chosen;
+                readinessThread = QThread::create([&, bundle] {
+                    auto inspection = pt::launcher::InspectBundle(bundle, supported);
+                    auto flatState = pt::launcher::CheckReadiness(inspection, pt::launcher::LaunchMode::Flat);
+                    auto vrState = pt::launcher::CheckReadiness(inspection, pt::launcher::LaunchMode::VR);
+                    QMetaObject::invokeMethod(&window, [&, bundle, inspection = std::move(inspection), flatState, vrState] () mutable {
+                        readinessPending = false; readinessThread = nullptr;
+                        if (chosen == bundle) {
+                            cachedInspection = std::move(inspection);
+                            flatReadiness = flatState; vrModeReadiness = vrState;
+                        }
+                        refresh();
+                    }, Qt::QueuedConnection);
+                });
+                QObject::connect(readinessThread, &QThread::finished, readinessThread, &QObject::deleteLater);
+                readinessThread->start();
+            }
+            return;
+        }
         const auto& inspection = *cachedInspection;
         previousRunning = session.activity == pt::launcher::Activity::Running;
         const bool runtime =
@@ -167,7 +203,14 @@ int main(int argc, char** argv) {
 #else
             inspection.linux_runtime.verified;
 #endif
-        play->setEnabled(!recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && inspection.archives && runtime);
+        play->setText(flatReadiness.state == pt::launcher::ReadinessState::Unknown ? "Try Play anyway" : "Play");
+        play->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && flatReadiness.state != pt::launcher::ReadinessState::Blocked);
+        vr->setText(vrModeReadiness.state == pt::launcher::ReadinessState::Unknown ? "Try VR anyway" : "Play in VR");
+        vr->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && vrModeReadiness.state != pt::launcher::ReadinessState::Blocked);
+        flatReadinessLabel->setText(readinessText("Flat", flatReadiness));
+        vrReadiness->setText(readinessText("VR", vrModeReadiness));
+        retryVr->setVisible(vrModeReadiness.state != pt::launcher::ReadinessState::Ready);
+        retryVr->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped);
         settings->setEnabled(runtime && !preparing);
         resume->setVisible(session.activity == pt::launcher::Activity::Running);
         if (session.activity == pt::launcher::Activity::Running) warning->setText("Game process active. Return to the existing session.");
@@ -213,7 +256,7 @@ int main(int argc, char** argv) {
         if (chosen.empty()) { warning->setText("Extract the portable preview first, then run its launcher."); return; }
         preparing = true; cancelRequested->store(false); preparationLog = true;
         logButton->setText("Open preparation log");
-        play->setEnabled(false); resume->hide(); retry->hide(); logButton->hide();
+        play->setEnabled(false); vr->setEnabled(false); retryVr->setEnabled(false); resume->hide(); retry->hide(); logButton->hide();
         files->setEnabled(false); folderFiles->setEnabled(false); openBundle->setEnabled(false);
         preparationBar->setRange(0, 0); preparationBar->show();
         cancelPreparation->setEnabled(!recoverOnly); cancelPreparation->show();
@@ -290,13 +333,35 @@ int main(int argc, char** argv) {
     QObject::connect(cancelPreparation, &QPushButton::clicked, &window, [&] { confirmCancellation(false); });
     QObject::connect(play, &QPushButton::clicked, &window, [&] {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
-        auto result = pt::launcher::PlayFlat(chosen, supported);
+        auto result = pt::launcher::PlayFlat(chosen, supported, flatReadiness.state == pt::launcher::ReadinessState::Unknown);
         refresh();
         if (!result.error.isEmpty()) { lastFailure = result.error; warning->setText(result.error); retry->show(); logButton->show(); }
+    });
+    QObject::connect(vr, &QPushButton::clicked, &window, [&] {
+        lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
+        const bool tryAnyway = vrModeReadiness.state == pt::launcher::ReadinessState::Unknown;
+        launchPending = true; play->setEnabled(false); vr->setEnabled(false); vrReadiness->setText("Starting the VR attempt…");
+        const auto bundle = chosen;
+        auto result = std::make_shared<pt::launcher::SessionState>();
+        auto* launchThread = QThread::create([&, bundle, tryAnyway, result] {
+            *result = pt::launcher::PlayVR(bundle, supported, tryAnyway);
+            QMetaObject::invokeMethod(&window, [&, result] {
+                launchPending = false;
+                if (!result->error.isEmpty()) {
+                    lastFailure = result->error; warning->setText(result->error); retry->show(); logButton->show();
+                }
+                refresh();
+            }, Qt::QueuedConnection);
+        });
+        QObject::connect(launchThread, &QThread::finished, launchThread, &QObject::deleteLater);
+        launchThread->start();
     });
     QObject::connect(retry, &QPushButton::clicked, &window, [&] {
         if (recoveryBlocked) { prepare({}, true); return; }
         cachedInspection.reset(); lastFailure.clear(); retry->hide(); refresh();
+    });
+    QObject::connect(retryVr, &QPushButton::clicked, &window, [&] {
+        cachedInspection.reset(); refresh();
     });
     QObject::connect(resume, &QPushButton::clicked, &window, [&] {
         QString error; pt::launcher::ReturnToGame(pt::launcher::InspectSession(chosen), &error);
@@ -326,7 +391,33 @@ int main(int argc, char** argv) {
         if (!source.startsWith('-')) QTimer::singleShot(0, &window, [&, source] { prepare(source, false); });
     }
 #ifdef PT_LAUNCHER_TEST_BUILD
-    if (!chosen.empty()) QTimer::singleShot(0, &window, [&, testMode] {
+    bool vrControlRetried = false;
+    if (!chosen.empty()) QTimer::singleShot(300, &window, [&, testMode] {
+        if (testMode == "--test-flat-unknown-control") {
+            auto* readinessWait = new QTimer(&window); readinessWait->setInterval(10);
+            QObject::connect(readinessWait, &QTimer::timeout, &window, [&, readinessWait] {
+                if (readinessPending || !cachedInspection) return;
+                readinessWait->stop();
+                if (flatReadiness.state != pt::launcher::ReadinessState::Unknown ||
+                    play->text() != "Try Play anyway" || !play->isEnabled()) std::_Exit(82);
+                play->click();
+                QTimer::singleShot(250, &window, [] { QApplication::quit(); });
+            });
+            readinessWait->start(); return;
+        }
+        if (testMode == "--test-vr-control") {
+            auto* readinessWait = new QTimer(&window); readinessWait->setInterval(10);
+            QObject::connect(readinessWait, &QTimer::timeout, &window, [&, readinessWait] {
+                if (readinessPending || !cachedInspection) return;
+                readinessWait->stop();
+                if (vrModeReadiness.state != pt::launcher::ReadinessState::Unknown ||
+                    vr->text() != "Try VR anyway" || !vr->isEnabled()) std::_Exit(81);
+                if (!vrControlRetried) { vrControlRetried = true; retryVr->click(); readinessWait->start(); return; }
+                vr->click();
+                QTimer::singleShot(250, &window, [] { QApplication::quit(); });
+            });
+            readinessWait->start(); return;
+        }
         if (testMode == "--test-preparation-prompt") {
             const QByteArray source = qgetenv("PT_LAUNCHER_TEST_SOURCE");
             if (source.isEmpty()) qFatal("Test preparation source is missing");
