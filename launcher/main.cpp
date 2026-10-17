@@ -1,6 +1,7 @@
 #include "inspection.h"
 #include "session.h"
 #include "preparation.h"
+#include "settings_dialog.h"
 #include <QApplication>
 #include <QFileDialog>
 #include <QDesktopServices>
@@ -130,7 +131,7 @@ int main(int argc, char** argv) {
     auto* retry = new QPushButton("Retry"); retry->hide(); controls->addWidget(retry);
     auto* logButton = new QPushButton("Open game log"); logButton->hide(); controls->addWidget(logButton);
     auto* vr = new QPushButton("Play in VR"); vr->setEnabled(false); controls->addWidget(vr);
-    auto* settings = new QPushButton("Settings"); settings->setEnabled(false); controls->addWidget(settings);
+    auto* settings = new QPushButton("Settings"); settings->setObjectName("settings"); settings->setEnabled(false); controls->addWidget(settings);
     auto* files = new QPushButton("Game files — choose .pkg"); controls->addWidget(files);
     auto* folderFiles = new QPushButton("Import extracted game folder"); controls->addWidget(folderFiles);
     auto* openBundle = new QPushButton("Open existing portable bundle"); controls->addWidget(openBundle);
@@ -167,6 +168,7 @@ int main(int argc, char** argv) {
             inspection.linux_runtime.verified;
 #endif
         play->setEnabled(!recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && inspection.archives && runtime);
+        settings->setEnabled(runtime && !preparing);
         resume->setVisible(session.activity == pt::launcher::Activity::Running);
         if (session.activity == pt::launcher::Activity::Running) warning->setText("Game process active. Return to the existing session.");
         else if (session.activity == pt::launcher::Activity::Uncertain) warning->setText(session.error.isEmpty() ? "Game activity uncertain. Play is blocked." : session.error);
@@ -299,6 +301,15 @@ int main(int argc, char** argv) {
     QObject::connect(resume, &QPushButton::clicked, &window, [&] {
         QString error; pt::launcher::ReturnToGame(pt::launcher::InspectSession(chosen), &error);
         if (!error.isEmpty()) warning->setText(error);
+    });
+    QObject::connect(settings, &QPushButton::clicked, &window, [&] {
+#ifdef _WIN32
+        constexpr auto platform = pt::launcher::Platform::Windows;
+#else
+        constexpr auto platform = pt::launcher::Platform::Linux;
+#endif
+        pt::launcher::SettingsDialog dialog(chosen, platform, &window);
+        dialog.exec();
     });
     QObject::connect(logButton, &QPushButton::clicked, &window, [&] {
         if (!chosen.empty()) QDesktopServices::openUrl(QUrl::fromLocalFile(preparationLog ?
