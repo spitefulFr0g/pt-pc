@@ -138,13 +138,16 @@ int main(int argc,char** argv){
     fs::permissions(executable,fs::perms::owner_exec,fs::perm_options::add);
     pt::launcher::SettingsDialog afterExit(root,pt::launcher::Platform::Linux,supported);
     afterExit.show();
-    qint64 pid=0;
-    assert(QProcess::startDetached(QString::fromStdU32String(executable.u32string()),{"20"},{},&pid));
+    QProcess game;
+    game.start(QString::fromStdU32String(executable.u32string()),{"20"});
+    assert(game.waitForStarted());
     for(int i=0;i<100&&pt::launcher::InspectSession(root).activity!=pt::launcher::Activity::Running;++i) QThread::msleep(10);
     QThread::msleep(650); app.processEvents();
     put(ini,"[display]\nwidth=1750\nheight=910\nfullscreen=1\n[graphics]\nclarity=.3\n");
-    QProcess::execute("kill",{"-TERM",QString::number(pid)});
-    for(int i=0;i<100&&pt::launcher::InspectSession(root).activity==pt::launcher::Activity::Running;++i) QThread::msleep(10);
+    game.terminate();
+    assert(game.waitForFinished(5000));
+    for(int i=0;i<100&&pt::launcher::InspectSession(root).activity!=pt::launcher::Activity::Stopped;++i) QThread::msleep(10);
+    assert(pt::launcher::InspectSession(root).activity==pt::launcher::Activity::Stopped);
     for(int i=0;i<100&&afterExit.findChild<QSpinBox*>("displayWidth")->value()!=1750;++i) { app.processEvents(); QThread::msleep(10); }
     assert(afterExit.findChild<QSpinBox*>("displayWidth")->value()==1750);
     assert(afterExit.statusText().contains("reloaded from the runtime"));
