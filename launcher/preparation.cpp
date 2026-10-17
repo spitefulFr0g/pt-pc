@@ -149,9 +149,13 @@ void recover(const fs::path& root) {
         if (!j["files"].toArray().isEmpty()) fail("Invalid preparation initialization journal.");
         if (!fs::exists(stage)) { fs::remove(root / journalName); return; }
         if (fs::is_directory(stage) && fs::is_empty(stage)) { fs::remove(stage); fs::remove(root / journalName); return; }
-        stage = stagePath(root, j); safeTree(stage);
+        safeTree(stage);
         for (const auto& entry : fs::directory_iterator(stage))
             if (entry.path().filename() != ".owner") fail("Unexpected initialization files; retain the stage for recovery.");
+        // The initializing journal owns this directory before .owner is
+        // written. A direct ownership write can be empty or partial at death.
+        const auto marker = read(stage / ".owner", 128);
+        if (!stageName.toUtf8().startsWith(marker)) fail("Initialization ownership marker changed; retain the stage.");
         cleanup(root, stage); return;
     }
     if (phase == "complete") {
@@ -346,7 +350,11 @@ PreparationResult PrepareGame(const fs::path& bundle, const fs::path& input, con
             saveJournal(root, j);
             try {
                 if (!fs::create_directory(stage)) fail("Could not create private preparation staging.");
-                write(stage / ".owner", name.toUtf8());
+                QFile owner(qpath(stage / ".owner"));
+                if (!owner.open(QIODevice::WriteOnly | QIODevice::NewOnly) ||
+                    owner.write(name.toUtf8()) != name.toUtf8().size() || !owner.flush())
+                    fail("Could not record preparation staging ownership.");
+                owner.close();
                 j["phase"] = "staging"; saveJournal(root, j);
                 auto fresh = stage / "new"; fs::create_directory(fresh);
                 if (!adopted) {
