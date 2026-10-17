@@ -8,7 +8,16 @@ image="${PT_LAUNCHER_BUILD_IMAGE:-pt-launcher-preview-build-env-complete:latest}
 mkdir -p "$work/tmp"
 work="$(cd "$work" && pwd)"
 docker image inspect "$image" --format '{{.Id}}' > "$work/image-id.txt"
-docker run --rm \
+fixture_args=()
+if [[ -n "${PT_LAUNCHER_STAGED_EXTRACTOR:-}${PT_LAUNCHER_TEST_PKG:-}" ]]; then
+  test -d "${PT_LAUNCHER_STAGED_EXTRACTOR:?Supply the paired staged helper}"
+  test -f "${PT_LAUNCHER_TEST_PKG:?Supply a synthetic package fixture}"
+  fixture_args=(-v "$PT_LAUNCHER_STAGED_EXTRACTOR:/acceptance-extractor:ro"
+    -v "$PT_LAUNCHER_TEST_PKG:/acceptance-fixture.pkg:ro"
+    -e PT_LAUNCHER_STAGED_EXTRACTOR=/acceptance-extractor
+    -e PT_LAUNCHER_TEST_PKG=/acceptance-fixture.pkg)
+fi
+docker run --rm "${fixture_args[@]}" \
   -v "$repo:/repo:ro" -v "$work:/evidence" \
   -v "$qt_root:/opt/qt:ro" -v "$build_tools:/work/build-tools:ro" \
   -e TMPDIR=/evidence/tmp -w /repo "$image" bash -lc '
