@@ -1,0 +1,15 @@
+UTC audit date: 2026-10-17
+Host: Linux/WSL; execution: Ubuntu 24.04.5 Docker image
+Compiler: g++-13; C++20; CMake 3.28.3
+Qt: 6.12.0; Qt offscreen event loop; Xvfb/Openbox controlled windows
+Bound worktree: /home/watermelon/.t3/worktrees/pt-pc-wrapped/t3-02aea8b8
+Branch: t3/repair-graphics-preset-candidate
+Candidate: 49108474da40867518daf3d88619d9a8d68b8f9d
+Initial integration base: d1b06d685343ea2fe01b77210637f7e0b88ac8c7
+Merged integration: b6907be3400873b6267ee91c81bda8b789dfcafb
+Tested source commit: 809652b (full value in source-commit.txt)
+Supported runtime source contract: 60fe8b324aca24c264e89378ae0d2c61f3a674af
+Release provenance caveat: archive label pt-port-20261016-9e9edc21
+Runtime fixtures: controlled disposable bundles, not game content
+No native Windows/package/physical GPU/VR assertions
+Subscription authentication verified chatgpt before work and at final validation

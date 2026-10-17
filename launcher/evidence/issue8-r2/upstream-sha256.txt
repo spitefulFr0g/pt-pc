@@ -1,0 +1,3 @@
+6f0d4eeafa15b7ed1e34c24bfb6ac5326efda7ac6e48e38494cac295e37684d9  src/engine/platform/settings.cpp
+34c3ec33f7ca15d96d25ae1aedea9441646968664cb602301829d6d1ab0193f2  src/engine/platform/graphics_presets.cpp
+df6ea0bc550f728ca3d85ab36e3eec7ccc6b1828c3aca8aed93e2e35c31dc12e  src/engine/platform/settings.h

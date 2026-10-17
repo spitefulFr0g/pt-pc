@@ -1,5 +1,6 @@
 #pragma once
 #include "session.h"
+#include "engine/platform/graphics_presets.h"
 #include <optional>
 
 namespace pt::launcher {
@@ -8,16 +9,22 @@ struct DisplaySettings {
     int width = 1600;
     int height = 900;
     int windowMode = 0; // Supported runtime: 0 windowed, 1 borderless, 2 exclusive.
+    pt::GraphicsPreset graphicsPreset = pt::GraphicsPreset::Custom;
+    bool rayTracingCapabilityKnown = false;
+    bool rayTracingSupported = false;
 };
 struct DisplaySettingsSnapshot {
     bool available = false;
     DisplaySettings value;
+    pt::AppSettings::Graphics graphics;
+    pt::AppSettings::RayTracing rayTracing;
     QString error;
 };
 struct DisplaySettingsEdit {
     std::optional<int> width;
     std::optional<int> height;
     std::optional<int> windowMode;
+    std::optional<pt::GraphicsPreset> graphicsPreset;
 };
 enum class ApplyStatus { Applied, Conflict, Blocked, Failed };
 struct DisplaySettingsApplyResult {
@@ -36,8 +43,10 @@ struct DisplaySettingsApplyResult {
 // it cannot provide compare-and-swap against an uncooperative external writer.
 // Adapter pinned to the unchanged supported runtime settings semantics at source revision 60fe8b3.
 inline constexpr const char* kDisplaySettingsRuntimeRevision = "60fe8b324aca24c264e89378ae0d2c61f3a674af";
+// Capability is deliberately explicit. Unknown is treated as no ray tracing support.
+enum class RayTracingCapability { Unknown, Unsupported, Supported };
 DisplaySettingsSnapshot ReadDisplaySettings(const std::filesystem::path& bundle, Platform platform,
-    const std::vector<SupportedRuntime>& supported);
+    const std::vector<SupportedRuntime>& supported, RayTracingCapability capability = RayTracingCapability::Unknown);
 DisplaySettingsApplyResult ApplyDisplaySettings(const std::filesystem::path& bundle, Platform platform,
     const std::vector<SupportedRuntime>& supported, const DisplaySettingsSnapshot& base, const DisplaySettingsEdit& edit);
 }

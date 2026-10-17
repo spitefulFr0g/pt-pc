@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <QThread>
 #include <QProcess>
+#include <QStandardItemModel>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -30,15 +31,53 @@ int main(int argc,char** argv){
     auto* width=dialog.findChild<QSpinBox*>("displayWidth");
     auto* mode=dialog.findChild<QComboBox*>("displayWindowMode");
     auto* apply=dialog.findChild<QPushButton*>("settingsApply");
+    auto* graphics=dialog.findChild<QComboBox*>("graphicsPreset");
     auto* discard=dialog.findChild<QPushButton*>("settingsDiscard");
     auto* box=dialog.findChild<QDialogButtonBox*>();
-    assert(width&&mode&&apply&&discard&&box);
+    assert(width&&mode&&apply&&discard&&box&&graphics);
     dialog.show();
+    assert(!qobject_cast<QStandardItemModel*>(graphics->model())->item(4)->isEnabled());
+    // Custom A -> Custom B conflicts; reconcile keeps the dirty preset but refreshes clean fields.
+    auto* reloadPreset=dialog.findChild<QPushButton*>("settingsReload");
+    put(ini,"[display]\nwidth=1280\nheight=720\nfullscreen=0\n[graphics]\nclarity=.2\n");
+    reloadPreset->click();
+    assert(graphics->currentIndex()==4);
+    graphics->setCurrentIndex(2);
+    put(ini,"[display]\nwidth=1400\nheight=800\nfullscreen=1\n[graphics]\nclarity=.3\nunknown=keep\n");
+    const auto newerCustom=get(ini);
+    QTimer::singleShot(0,&dialog,[&] {
+        for (auto* w : QApplication::topLevelWidgets()) if (auto* message=qobject_cast<QMessageBox*>(w))
+            for (auto* button : message->buttons()) if (button->text()=="Reconcile my edits") { button->click(); return; }
+        std::abort();
+    });
+    apply->click();
+    assert(dialog.statusText().contains("Apply again"));
+    assert(graphics->currentIndex()==2 && width->value()==1400 && mode->currentIndex()==1);
+    assert(get(ini)==newerCustom);
+    apply->click();
+    assert(graphics->currentIndex()==2);
+    // Explicit activation of the currently displayed preset patches the whole keyset.
+    put(ini,get(ini)+"\n[graphics]\nclarity=.1\n");
+    QMetaObject::invokeMethod(graphics,"activated",Qt::DirectConnection,Q_ARG(int,2));
+    QTimer::singleShot(0,&dialog,[&] {
+        for (auto* w : QApplication::topLevelWidgets()) if (auto* message=qobject_cast<QMessageBox*>(w))
+            for (auto* button : message->buttons()) if (button->text()=="Reconcile my edits") { button->click(); return; }
+        std::abort();
+    });
+    apply->click();
+    apply->click();
+    assert(graphics->currentIndex()==2 && get(ini).find("clarity=0.250000")!=std::string::npos);
+    put(ini,"; retain\n[display]\nwidth = 1280 ; retain inline note\nheight = 720\nfullscreen = 0\nunknown = keep\n");
+    reloadPreset->click();
     width->setValue(1600); apply->click();
     assert(get(ini).find("width = 1600")!=std::string::npos);
     assert(get(ini).find("width = 1600 ; retain inline note")!=std::string::npos);
     mode->setCurrentIndex(2); apply->click();
     assert(mode->currentIndex()==2&&get(ini).find("fullscreen = 2")!=std::string::npos);
+    graphics->setCurrentIndex(static_cast<int>(pt::GraphicsPreset::High)); apply->click();
+    assert(get(ini).find("[graphics]")!=std::string::npos&&get(ini).find("enhanced_textures = 1")!=std::string::npos);
+    assert(get(ini).find("[raytracing]")!=std::string::npos&&get(ini).find("unknown = keep")!=std::string::npos);
+    assert(graphics->currentIndex()==static_cast<int>(pt::GraphicsPreset::High));
     mode->setCurrentIndex(1); discard->click();
     assert(mode->currentIndex()==2&&get(ini).find("fullscreen = 2")!=std::string::npos);
     width->setValue(1680);
@@ -103,12 +142,13 @@ int main(int argc,char** argv){
     assert(QProcess::startDetached(QString::fromStdU32String(executable.u32string()),{"20"},{},&pid));
     for(int i=0;i<100&&pt::launcher::InspectSession(root).activity!=pt::launcher::Activity::Running;++i) QThread::msleep(10);
     QThread::msleep(650); app.processEvents();
-    put(ini,"[display]\nwidth=1750\nheight=910\nfullscreen=1\n");
+    put(ini,"[display]\nwidth=1750\nheight=910\nfullscreen=1\n[graphics]\nclarity=.3\n");
     QProcess::execute("kill",{"-TERM",QString::number(pid)});
     for(int i=0;i<100&&pt::launcher::InspectSession(root).activity==pt::launcher::Activity::Running;++i) QThread::msleep(10);
     for(int i=0;i<100&&afterExit.findChild<QSpinBox*>("displayWidth")->value()!=1750;++i) { app.processEvents(); QThread::msleep(10); }
     assert(afterExit.findChild<QSpinBox*>("displayWidth")->value()==1750);
     assert(afterExit.statusText().contains("reloaded from the runtime"));
+    assert(afterExit.findChild<QComboBox*>("graphicsPreset")->currentIndex()==4);
     afterExit.hide();
 #endif
 }

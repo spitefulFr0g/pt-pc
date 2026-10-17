@@ -4,6 +4,11 @@
 #include <algorithm>
 #include <map>
 #include <sstream>
+#include <cmath>
+#include <type_traits>
+#include "engine/core/ascii.h"
+#include "engine/platform/settings.h"
+#include "engine/platform/graphics_presets.h"
 
 namespace pt::launcher {
 namespace fs = std::filesystem;
@@ -86,81 +91,225 @@ DisplaySettingsSnapshot decode(const SettingsText& source) {
     return result;
 }
 std::string newlineOf(const std::string& text) { return text.find("\r\n") != std::string::npos ? "\r\n" : "\n"; }
-std::string patch(const std::string& text, const DisplaySettingsEdit& edit) {
-    const auto nl = newlineOf(text); const bool trailingNewline=text.empty() || text.back()=='\n';
-    std::vector<std::string> lines, endings;
-    for (size_t start=0; start<text.size();) {
-        const auto newline=text.find('\n',start);
-        auto end=newline==std::string::npos ? text.size() : newline;
-        std::string ending=newline==std::string::npos ? "" : "\n";
-        if (newline!=std::string::npos && end>start && text[end-1]=='\r') { --end; ending="\r\n"; }
-        lines.push_back(text.substr(start,end-start)); endings.push_back(ending);
-        start=newline==std::string::npos ? text.size() : newline+1;
-    }
-    const auto appendLine=[&](const std::string& line) {
-        if (!endings.empty() && endings.back().empty()) endings.back()=nl;
-        lines.push_back(line); endings.push_back(trailingNewline ? nl : "");
+std::map<std::string,std::string> graphicsValues(const pt::AppSettings& s) {
+    const auto& g = s.graphics;
+    const auto& r = s.ray_tracing;
+    return {
+        {"graphics.anisotropy",std::to_string(g.anisotropy)},
+        {"graphics.enhanced_textures",g.enhanced_textures?"1":"0"},
+        {"graphics.shadow_quality",std::to_string(g.shadow_quality)},
+        {"graphics.ambient_occlusion",g.ambient_occlusion?"1":"0"},
+        {"graphics.reflections",g.reflections?"1":"0"},
+        {"graphics.bloom",g.bloom?"1":"0"},
+        {"graphics.depth_of_field",g.depth_of_field?"1":"0"},
+        {"graphics.motion_blur",g.motion_blur?"1":"0"},
+        {"graphics.lens_distortion",g.lens_distortion?"1":"0"},
+        {"graphics.lens_ghosts",g.lens_ghosts?"1":"0"},
+        {"graphics.deband",g.deband?"1":"0"},
+        {"graphics.film_grain",std::to_string(g.film_grain)},
+        {"graphics.clarity",std::to_string(g.clarity)},
+        {"graphics.texture_detail",std::to_string(g.texture_detail)},
+        {"graphics.ray_quality",std::to_string(g.ray_quality)},
+        {"raytracing.shadows",std::to_string(r.shadows)},
+        {"raytracing.ambient_occlusion",r.ambient_occlusion?"1":"0"},
+        {"raytracing.contact_shadows",r.contact_shadows?"1":"0"},
+        {"raytracing.reflections",r.reflections?"1":"0"},
+        {"raytracing.full_shadows",r.full_shadows?"1":"0"},
+        {"raytracing.bounce_light",r.bounce_light?"1":"0"},
+        {"raytracing.glossy_reflections",r.glossy_reflections?"1":"0"}
     };
-    bool inDisplay = false, foundSection = false;
-    std::map<std::string, bool> written{{"width", false}, {"height", false}, {"fullscreen", false}};
-    const auto replaceValue = [&](const std::string& key) -> std::optional<int> {
-        if (key == "width") return edit.width;
-        if (key == "height") return edit.height;
-        if (key == "fullscreen") return edit.windowMode;
+}
+// Replace only the runtime-effective (last) occurrence; retain every other byte.
+// Missing affected keys are added within their section.
+std::string patchValues(const std::string& text, const std::map<std::string,std::string>& values) {
+    const auto newline = newlineOf(text);
+    const bool trailingNewline = text.empty() || text.back() == '\n';
+    std::vector<std::string> lines, endings;
+    for (size_t start = 0; start < text.size();) {
+        const auto next = text.find('\n', start);
+        auto end = next == std::string::npos ? text.size() : next;
+        std::string ending = next == std::string::npos ? "" : "\n";
+        if (next != std::string::npos && end > start && text[end-1] == '\r') {
+            --end;
+            ending = "\r\n";
+        }
+        lines.push_back(text.substr(start, end-start));
+        endings.push_back(ending);
+        start = next == std::string::npos ? text.size() : next+1;
+    }
+    const auto sectionName = [](const std::string& line) -> std::optional<std::string> {
+        const auto value = trim(line);
+        if (value.size() >= 2 && value.front() == '[' && value.back() == ']')
+            return trim(value.substr(1,value.size()-2));
         return std::nullopt;
     };
-    // The runtime parser uses the last duplicate key, so replace only its effective occurrence.
-    std::map<std::string, size_t> last;
+    std::map<std::string,size_t> last;
+    std::string section;
     for (size_t i=0; i<lines.size(); ++i) {
-        const auto t=trim(lines[i]);
-        if (!t.empty() && t.front()=='[' && t.back()==']') inDisplay = trim(t.substr(1,t.size()-2))=="display";
-        else if (inDisplay) {
-            const auto eq=lines[i].find('=');
-            if (eq!=std::string::npos) { auto k=trim(lines[i].substr(0,eq)); if (replaceValue(k)) last[k]=i; }
-        }
+        if (auto name = sectionName(lines[i])) { section = *name; continue; }
+        const auto value = trim(lines[i]);
+        if (value.empty() || value.front() == ';' || value.front() == '#') continue;
+        const auto equals = lines[i].find('=');
+        if (equals == std::string::npos) continue;
+        const auto key = section + "." + trim(lines[i].substr(0,equals));
+        if (values.contains(key)) last[key] = i;
     }
-    const std::map<std::string, int> values{{"width", edit.width.value_or(0)}, {"height", edit.height.value_or(0)}, {"fullscreen", edit.windowMode.value_or(0)}};
     for (const auto& [key,index] : last) {
-        if (!replaceValue(key)) continue;
-        const auto eq=lines[index].find('=');
-        size_t valueStart=eq+1;
-        while (valueStart<lines[index].size() && (lines[index][valueStart]==' ' || lines[index][valueStart]=='\t')) ++valueStart;
-        size_t suffix=lines[index].find_first_of(";#",valueStart);
-        if (suffix==std::string::npos) {
-            suffix=lines[index].size();
-            while(suffix>valueStart&&(lines[index][suffix-1]==' '||lines[index][suffix-1]=='\t'))--suffix;
-        } else {
-            while(suffix>valueStart&&(lines[index][suffix-1]==' '||lines[index][suffix-1]=='\t'))--suffix;
-        }
-        lines[index] = lines[index].substr(0,valueStart) + std::to_string(values.at(key)) + lines[index].substr(suffix);
-        written[key]=true;
+        auto& line = lines[index];
+        size_t begin = line.find('=')+1;
+        while (begin < line.size() && (line[begin] == ' ' || line[begin] == '\t')) ++begin;
+        size_t end = line.find_first_of(";#",begin);
+        if (end == std::string::npos) end = line.size();
+        while (end > begin && (line[end-1] == ' ' || line[end-1] == '\t')) --end;
+        const bool boolean = key == "graphics.enhanced_textures" ||
+            key == "graphics.ambient_occlusion" || key == "graphics.reflections" ||
+            key == "graphics.bloom" || key == "graphics.depth_of_field" ||
+            key == "graphics.motion_blur" || key == "graphics.lens_distortion" ||
+            key == "graphics.lens_ghosts" || key == "graphics.deband" ||
+            (key.starts_with("raytracing.") && key != "raytracing.shadows");
+        // Upstream numeric reads accept suffixes, but boolean reads compare the
+        // entire token. Retain an affected boolean's note on its own line.
+        const bool moveComment = boolean && line.find_first_of(";#",begin) != std::string::npos;
+        line = line.substr(0,begin) + values.at(key) +
+            (moveComment ? newline : "") + line.substr(end);
     }
-    size_t sectionEnd = lines.size();
-    for (size_t i=0;i<lines.size();++i) {
-        auto t=trim(lines[i]);
-        if (!t.empty() && t.front()=='[' && t.back()==']') {
-            if (foundSection) { sectionEnd=i; break; }
-            if (trim(t.substr(1,t.size()-2))=="display") foundSection=true;
-        }
+    std::map<std::string,std::vector<std::string>> missing;
+    for (const auto& [key,value] : values) {
+        if (last.contains(key)) continue;
+        const auto dot = key.find('.');
+        missing[key.substr(0,dot)].push_back(key.substr(dot+1) + " = " + value);
     }
-    std::vector<std::string> missing;
-    for (const auto& key : {"width","height","fullscreen"}) if (replaceValue(key) && !written[key])
-        missing.push_back(std::string(key) + " = " + std::to_string(values.at(key)));
-    if (!missing.empty()) {
-        if (!foundSection) {
-            if (!lines.empty() && !lines.back().empty()) appendLine({});
-            appendLine("[display]"); sectionEnd=lines.size();
+    for (const auto& [wanted, additions] : missing) {
+        bool found = false;
+        size_t insertion = lines.size();
+        for (size_t i=0; i<lines.size(); ++i) {
+            if (auto name = sectionName(lines[i])) {
+                if (found) { insertion = i; break; }
+                found = *name == wanted;
+            }
         }
-        if (sectionEnd==lines.size() && !endings.empty() && endings.back().empty()) endings.back()=nl;
-        std::vector<std::string> addedEndings(missing.size(),nl);
-        if (sectionEnd==lines.size() && !trailingNewline) addedEndings.back().clear();
-        lines.insert(lines.begin()+static_cast<std::ptrdiff_t>(sectionEnd), missing.begin(), missing.end());
-        endings.insert(endings.begin()+static_cast<std::ptrdiff_t>(sectionEnd), addedEndings.begin(), addedEndings.end());
+        if (!found) {
+            if (!endings.empty() && endings.back().empty()) endings.back() = newline;
+            if (!lines.empty() && !lines.back().empty()) {
+                lines.push_back("");
+                endings.push_back(newline);
+            }
+            lines.push_back("[" + wanted + "]");
+            endings.push_back(newline);
+            insertion = lines.size();
+        }
+        if (insertion == lines.size() && !endings.empty() && endings.back().empty())
+            endings.back() = newline;
+        std::vector<std::string> addedEndings(additions.size(),newline);
+        if (insertion == lines.size() && !trailingNewline) addedEndings.back().clear();
+        lines.insert(lines.begin()+static_cast<std::ptrdiff_t>(insertion),additions.begin(),additions.end());
+        endings.insert(endings.begin()+static_cast<std::ptrdiff_t>(insertion),addedEndings.begin(),addedEndings.end());
     }
     std::string result;
-    for (size_t i=0;i<lines.size();++i) {
-        result += lines[i];
-        result += endings[i];
+    for (size_t i=0; i<lines.size(); ++i) result += lines[i] + endings[i];
+    return result;
+}
+// Bounded byte adapter to the pinned LoadAppSettings semantics. The differential
+// acceptance test links the unchanged upstream file; no renderer is involved.
+template<class T>
+void Read(const std::map<std::string, std::string>& values, const char* key, T& out) {
+    const auto it = values.find(key);
+    if (it == values.end()) return;
+    try {
+        if constexpr (std::is_same_v<T, bool>) {
+            auto value = it->second;
+            std::transform(value.begin(), value.end(), value.begin(),
+                [](unsigned char c) { return pt::AsciiLower(static_cast<char>(c)); });
+            out = value == "1" || value == "true" || value == "yes" || value == "on";
+        } else if constexpr (std::is_same_v<T, int>) {
+            out = std::stoi(it->second);
+        } else {
+            out = std::stof(it->second);
+        }
+    } catch (...) {
+        // Like upstream, invalid numbers retain the default.
+    }
+}
+pt::AppSettings decodeGraphics(const std::string& text) {
+    std::map<std::string, std::string> v;
+    std::istringstream input(text);
+    std::string line, section;
+    while (std::getline(input, line)) {
+        auto value = trim(line);
+        if (value.empty() || value[0] == ';' || value[0] == '#') continue;
+        if (value.front() == '[' && value.back() == ']') {
+            section = trim(value.substr(1, value.size()-2));
+            continue;
+        }
+        const auto equals = value.find('=');
+        if (equals == std::string::npos) continue;
+        auto content = trim(value.substr(equals+1));
+        if (content.size() >= 2 && content.front() == '"' && content.back() == '"')
+            content = content.substr(1, content.size()-2);
+        v[section + "." + trim(value.substr(0, equals))] = content;
+    }
+    using namespace pt;
+    AppSettings out;
+    Read(v, "raytracing.shadows", out.ray_tracing.shadows);
+    Read(v, "raytracing.ambient_occlusion", out.ray_tracing.ambient_occlusion);
+    Read(v, "raytracing.contact_shadows", out.ray_tracing.contact_shadows);
+    Read(v, "raytracing.reflections", out.ray_tracing.reflections);
+    Read(v, "raytracing.full_shadows", out.ray_tracing.full_shadows);
+    Read(v, "raytracing.bounce_light", out.ray_tracing.bounce_light);
+    Read(v, "raytracing.glossy_reflections", out.ray_tracing.glossy_reflections);
+    Read(v, "graphics.anisotropy", out.graphics.anisotropy);
+    Read(v, "graphics.enhanced_textures", out.graphics.enhanced_textures);
+    Read(v, "graphics.shadow_quality", out.graphics.shadow_quality);
+    Read(v, "graphics.ambient_occlusion", out.graphics.ambient_occlusion);
+    Read(v, "graphics.reflections", out.graphics.reflections);
+    Read(v, "graphics.bloom", out.graphics.bloom);
+    Read(v, "graphics.depth_of_field", out.graphics.depth_of_field);
+    Read(v, "graphics.motion_blur", out.graphics.motion_blur);
+    Read(v, "graphics.lens_distortion", out.graphics.lens_distortion);
+    Read(v, "graphics.lens_ghosts", out.graphics.lens_ghosts);
+    Read(v, "graphics.deband", out.graphics.deband);
+    Read(v, "graphics.film_grain", out.graphics.film_grain);
+    Read(v, "graphics.clarity", out.graphics.clarity);
+    Read(v, "graphics.texture_detail", out.graphics.texture_detail);
+    Read(v, "graphics.ray_quality", out.graphics.ray_quality);
+    if (!v.contains("graphics.lens_ghosts")) {
+        AppSettings probe = out;
+        probe.graphics.lens_ghosts = true;
+        out.graphics.lens_ghosts = DetectGraphicsPreset(probe, false) == GraphicsPreset::Original ||
+                                   DetectGraphicsPreset(probe, true) == GraphicsPreset::Original;
+    }
+    if (!v.contains("graphics.deband")) {
+        AppSettings probe = out;
+        probe.graphics.deband = false;
+        out.graphics.deband = !(DetectGraphicsPreset(probe, false) == GraphicsPreset::Original ||
+                                DetectGraphicsPreset(probe, true) == GraphicsPreset::Original);
+    }
+    out.graphics.shadow_quality=std::clamp(out.graphics.shadow_quality,0,3);
+    out.graphics.texture_detail=std::clamp(out.graphics.texture_detail,0,2);
+    if (out.graphics.ray_quality == kRayQualityOldUltraIni) {
+        out.graphics.ray_quality = 2;
+    } else {
+        out.graphics.ray_quality=std::clamp(out.graphics.ray_quality,0,4);
+        if (out.graphics.ray_quality == 2) {
+            out.graphics.ray_quality = 3;
+        }
+    }
+    out.graphics.film_grain=std::isfinite(out.graphics.film_grain)?std::clamp(out.graphics.film_grain,0.0f,1.0f):1.0f;
+    out.graphics.clarity=std::isfinite(out.graphics.clarity)?std::clamp(out.graphics.clarity,0.0f,1.0f):0.0f;
+    out.ray_tracing.shadows = std::clamp(out.ray_tracing.shadows, 0, 2);
+    const int anisotropy = out.graphics.anisotropy;
+    out.graphics.anisotropy = anisotropy >= 16 ? 16 : anisotropy >= 8 ? 8 : anisotropy >= 4 ? 4 : anisotropy >= 2 ? 2 : 0;
+    return out;
+}
+DisplaySettingsSnapshot snapshot(const SettingsText& source, bool known, bool rt) {
+    auto result = decode(source);
+    if (result.available) {
+        const auto settings = decodeGraphics(source.bytes);
+        result.graphics = settings.graphics;
+        result.rayTracing = settings.ray_tracing;
+        result.value.graphicsPreset = pt::DetectGraphicsPreset(settings, rt);
+        result.value.rayTracingCapabilityKnown = known;
+        result.value.rayTracingSupported = rt;
     }
     return result;
 }
@@ -174,7 +323,7 @@ bool verifiedRuntime(const fs::path& bundle, Platform platform, const std::vecto
     return platform==Platform::Linux ? inspection.linux_runtime.verified : inspection.windows_runtime.verified;
 }
 DisplaySettingsSnapshot ReadDisplaySettings(const fs::path& bundle, Platform platform,
-    const std::vector<SupportedRuntime>& supported) {
+    const std::vector<SupportedRuntime>& supported, RayTracingCapability capability) {
     if (!verifiedRuntime(bundle,platform,supported)) {
         DisplaySettingsSnapshot result;
         result.error="Runtime unverified. Align with a matching supported release before editing settings.";
@@ -182,7 +331,8 @@ DisplaySettingsSnapshot ReadDisplaySettings(const fs::path& bundle, Platform pla
     }
     QString error;
     if (!containedSettings(bundle,platform,error)) { DisplaySettingsSnapshot result; result.error=error; return result; }
-    return decode(readText(settingsPath(bundle, platform)));
+    return snapshot(readText(settingsPath(bundle,platform)),
+        capability != RayTracingCapability::Unknown, capability == RayTracingCapability::Supported);
 }
 DisplaySettingsApplyResult ApplyDisplaySettings(const fs::path& bundle, Platform platform,
     const std::vector<SupportedRuntime>& supported, const DisplaySettingsSnapshot& base, const DisplaySettingsEdit& edit) {
@@ -190,8 +340,11 @@ DisplaySettingsApplyResult ApplyDisplaySettings(const fs::path& bundle, Platform
     if (!base.available) { result.status=ApplyStatus::Failed; result.error="Reload platform settings before applying changes."; return result; }
     if ((edit.width && (*edit.width<320 || *edit.width>16384)) ||
         (edit.height && (*edit.height<240 || *edit.height>16384)) ||
-        (edit.windowMode && (*edit.windowMode<0 || *edit.windowMode>2))) {
-        result.status=ApplyStatus::Failed; result.error="Display values are outside the supported runtime range."; return result;
+        (edit.windowMode && (*edit.windowMode<0 || *edit.windowMode>2)) ||
+        (edit.graphicsPreset && (*edit.graphicsPreset < pt::GraphicsPreset::Low || *edit.graphicsPreset > pt::GraphicsPreset::Ultra))) {
+        result.status=ApplyStatus::Failed; result.error=edit.graphicsPreset&&*edit.graphicsPreset==pt::GraphicsPreset::Custom
+            ? "Custom is detected from settings and cannot be applied as a preset."
+            : "Display values are outside the supported runtime range."; return result;
     }
     QString guardError; bool conflict=false, failed=false;
     const bool guarded=WithStoppedBundle(bundle,[&] {
@@ -203,17 +356,27 @@ DisplaySettingsApplyResult ApplyDisplaySettings(const fs::path& bundle, Platform
         if (!containedSettings(bundle,platform,result.error)) { failed=true; return; }
         const auto path=settingsPath(bundle,platform);
         const auto source=readText(path);
-        auto latest=decode(source);
+        auto latest = snapshot(source, base.value.rayTracingCapabilityKnown, base.value.rayTracingSupported);
         if (!latest.available) { failed=true; result.error=latest.error; return; }
-        if (!sameEdited(base.value,latest.value,edit)) { conflict=true; result.error="These display settings changed while you were editing. Reload or reconcile the newer values."; return; }
-        if (!edit.width && !edit.height && !edit.windowMode) {
+        if (!sameEdited(base.value,latest.value,edit) || (edit.graphicsPreset && (base.graphics != latest.graphics || base.rayTracing != latest.rayTracing))) { conflict=true; result.error="These settings changed while you were editing. Reload or reconcile the newer values."; return; }
+        if (!edit.width && !edit.height && !edit.windowMode && !edit.graphicsPreset) {
             result.persisted=latest; result.status=ApplyStatus::Applied; return;
         }
         std::error_code directoryError;
         fs::create_directory(path.parent_path(),directoryError);
         if (directoryError) { failed=true; result.error="Cannot create platform settings directory."; return; }
         QSaveFile output(QString::fromStdU32String(path.u32string()));
-        const auto bytes=patch(source.bytes,edit);
+        std::map<std::string,std::string> values;
+        if (edit.width) values["display.width"] = std::to_string(*edit.width);
+        if (edit.height) values["display.height"] = std::to_string(*edit.height);
+        if (edit.windowMode) values["display.fullscreen"] = std::to_string(*edit.windowMode);
+        if (edit.graphicsPreset) {
+            pt::AppSettings settings;
+            pt::ApplyGraphicsPreset(settings, *edit.graphicsPreset,
+                base.value.rayTracingCapabilityKnown && base.value.rayTracingSupported);
+            values.merge(graphicsValues(settings));
+        }
+        const std::string bytes = patchValues(source.bytes,values);
         if (!output.open(QIODevice::WriteOnly) || output.write(bytes.data(),static_cast<qint64>(bytes.size()))!=static_cast<qint64>(bytes.size())) {
             failed=true; result.error="Cannot atomically save display settings: " + output.errorString(); return;
         }
@@ -236,7 +399,13 @@ DisplaySettingsApplyResult ApplyDisplaySettings(const fs::path& bundle, Platform
             return;
         }
         if (!output.commit()) { failed=true; result.error="Cannot atomically save display settings: " + output.errorString(); return; }
-        result.persisted=decode(readText(path));
+        const auto readback = readText(path);
+        result.persisted = snapshot(readback, base.value.rayTracingCapabilityKnown, base.value.rayTracingSupported);
+        if (readback.valid && readback.bytes != bytes) {
+            conflict = true;
+            result.error = "Settings changed after saving. Reload or reconcile the newer values.";
+            return;
+        }
         if (!result.persisted.available) { failed=true; result.error="Settings were written but could not be read back."; return; }
         result.status=ApplyStatus::Applied;
     },&guardError);
