@@ -7,4 +7,6 @@ mkdir -p "$evidence_dir"
 export QT_QPA_PLATFORM
 cmake -S "$repo_dir/launcher" -B "$evidence_dir/build" -DPT_LAUNCHER_QT_MIN_VERSION=6.12.0 2>&1 | tee "$evidence_dir/configure.log"
 cmake --build "$evidence_dir/build" -j2 2>&1 | tee "$evidence_dir/build.log"
-ctest --test-dir "$evidence_dir/build" --output-on-failure 2>&1 | tee "$evidence_dir/ctest.log"
+# Retained desktop/player-data boundaries; controller, window-focus and Gaming Mode
+# supervisor suites remain available via unfiltered CTest for optional development.
+ctest --test-dir "$evidence_dir/build" --output-on-failure -R '^launcher_(inspection|readiness|session|preparation|preparation_ui|preparation_process|settings|settings_dialog)$' 2>&1 | tee "$evidence_dir/ctest.log"

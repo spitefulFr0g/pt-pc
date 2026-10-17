@@ -14,6 +14,8 @@ struct SessionState {
     QString error;
     QString log;
 };
+// Recognize only the existing runtime's explicit VR failure/fallback marker.
+QString KnownVrFailure(const QString& log);
 // Public operations used by the UI and by future bundle mutations.
 SessionState InspectSession(const std::filesystem::path& bundle);
 SessionState PlayFlat(const std::filesystem::path& bundle, const std::vector<SupportedRuntime>& supported,

@@ -16,6 +16,17 @@ namespace fs = std::filesystem;
 static void write(const fs::path& p, const std::string& s) { fs::create_directories(p.parent_path()); std::ofstream(p, std::ios::binary) << s; }
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
+    {
+        QTemporaryDir logs;
+        const QString path = logs.path() + "/pt.log";
+        QFile file(path); assert(file.open(QIODevice::WriteOnly));
+        file.write("vr: session created\n"); file.close();
+        assert(pt::launcher::KnownVrFailure(path).isEmpty());
+        assert(file.open(QIODevice::WriteOnly | QIODevice::Append));
+        file.write("vr: off for this run: no headset\n"); file.close();
+        assert(pt::launcher::KnownVrFailure(path).contains("no headset"));
+        assert(pt::launcher::KnownVrFailure(logs.path() + "/missing").isEmpty());
+    }
     if (argc == 4 && (QString::fromLocal8Bit(argv[1]) == "--hold-lock" || QString::fromLocal8Bit(argv[1]) == "--crash-lock")) {
         const bool crash = QString::fromLocal8Bit(argv[1]) == "--crash-lock";
         QString error;

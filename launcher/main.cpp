@@ -105,6 +105,7 @@ int main(int argc, char** argv) {
     std::optional<pt::launcher::BundleInspection> cachedInspection;
     QString lastFailure;
     bool previousRunning = false;
+    QString vrAttemptIdentity;
     QSettings preferences("pt-pc", "pt-launcher");
     const QString lastBundle = preferences.value("lastBundle").toString();
     if (!lastBundle.isEmpty()) chosen = std::filesystem::path(lastBundle.toStdU32String());
@@ -148,26 +149,29 @@ int main(int argc, char** argv) {
     auto* panel = new QWidget; auto* controls = new QVBoxLayout(panel); controls->setSpacing(14); controls->setContentsMargins(28,30,28,30);
     auto* title = new QLabel("P.T."); title->setObjectName("title"); controls->addWidget(title);
     controls->addWidget(new QLabel("A quiet place to return.")); controls->addStretch();
-    auto* controllerHints = new QLabel("D-pad / stick: move    A: select    B: back");
-    controllerHints->setObjectName("controllerHints"); controllerHints->setWordWrap(true); controls->addWidget(controllerHints);
-    auto* warning = new QLabel("Choose your P.T. .pkg in Game files, or drop it here."); warning->setObjectName("warning"); warning->setWordWrap(true); controls->addWidget(warning);
+    auto* warning = new QLabel("Choose your P.T. .pkg below, or drop it here."); warning->setObjectName("warning"); warning->setWordWrap(true); controls->addWidget(warning);
     auto* play = new QPushButton("Play"); play->setObjectName("play"); play->setEnabled(false); controls->addWidget(play);
     auto* flatReadinessLabel = new QLabel; flatReadinessLabel->setWordWrap(true); controls->addWidget(flatReadinessLabel);
     auto* resume = new QPushButton("Return to game"); resume->setObjectName("returnToGame"); resume->hide(); controls->addWidget(resume);
     auto* retry = new QPushButton("Retry"); retry->hide(); controls->addWidget(retry);
     auto* logButton = new QPushButton("Open game log"); logButton->hide(); controls->addWidget(logButton);
-    auto* vr = new QPushButton("Play in VR"); vr->setEnabled(false); controls->addWidget(vr);
+    auto* vr = new QPushButton("Play VR"); vr->setEnabled(false); controls->addWidget(vr);
     auto* vrReadiness = new QLabel; vrReadiness->setWordWrap(true); controls->addWidget(vrReadiness);
     auto* retryVr = new QPushButton("Retry VR readiness"); retryVr->hide(); controls->addWidget(retryVr);
     auto* settings = new QPushButton("Settings"); settings->setObjectName("settings"); settings->setEnabled(false); controls->addWidget(settings);
-    auto* files = new QPushButton("Game files — choose .pkg"); controls->addWidget(files);
+    auto* files = new QPushButton("Choose .pkg and prepare"); controls->insertWidget(controls->indexOf(play), files);
     auto* folderFiles = new QPushButton("Import extracted game folder"); controls->addWidget(folderFiles);
     auto* openBundle = new QPushButton("Open existing portable bundle"); controls->addWidget(openBundle);
     if (qEnvironmentVariableIsSet("PT_SESSION_BUNDLE")) openBundle->setEnabled(false);
     auto* preparationBar = new QProgressBar; preparationBar->hide(); controls->addWidget(preparationBar);
     auto* cancelPreparation = new QPushButton("Cancel preparation"); cancelPreparation->hide(); controls->addWidget(cancelPreparation);
-    auto* updates = new QPushButton("Updates"); updates->setEnabled(false); controls->addWidget(updates);
     auto* details = new QLabel; details->setWordWrap(true); controls->addWidget(details);
+    auto* more = new QPushButton("More options"); more->setCheckable(true); controls->addWidget(more);
+    for (QWidget* secondary : std::initializer_list<QWidget*>{settings, folderFiles, openBundle, details}) secondary->hide();
+    QObject::connect(more, &QPushButton::toggled, &window, [=](bool expanded) {
+        for (QWidget* secondary : std::initializer_list<QWidget*>{settings, folderFiles, openBundle, details}) secondary->setVisible(expanded);
+        more->setText(expanded ? "Fewer options" : "More options");
+    });
     bool preparing = false, closeAfterPreparation = false, preparationLog = false, recoveryBlocked = false;
     pt::launcher::ControllerAdapter* controllerAdapter = nullptr;
     auto* tryFlat = new QPushButton("Try Play anyway"); tryFlat->setObjectName("tryPlayAnyway"); tryFlat->hide(); controls->insertWidget(controls->indexOf(play) + 1, tryFlat);
@@ -197,6 +201,10 @@ int main(int argc, char** argv) {
         if (previousRunning && session.activity == pt::launcher::Activity::Stopped) {
             previousRunning = false; // Consume the transition before asynchronous refresh re-enters.
             lastFailure = "Game process exited. Open the game log or retry Play.";
+            if (!vrAttemptIdentity.isEmpty()) {
+                const auto outcome = pt::launcher::KnownVrFailure(session.log);
+                if (!outcome.isEmpty()) lastFailure += "\n" + outcome;
+            }
             retry->show(); logButton->show();
             cachedInspection.reset();
         }
@@ -242,20 +250,26 @@ int main(int argc, char** argv) {
         play->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && flatReadiness.state == pt::launcher::ReadinessState::Ready);
         tryFlat->setVisible(flatReadiness.state == pt::launcher::ReadinessState::Unknown);
         tryFlat->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped);
-        vr->setText(vrModeReadiness.state == pt::launcher::ReadinessState::Unknown ? "Try VR anyway" : "Play in VR");
+        vr->setText(vrModeReadiness.state == pt::launcher::ReadinessState::Unknown ? "Try VR anyway" : "Play VR");
         vr->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && vrModeReadiness.state != pt::launcher::ReadinessState::Blocked);
         flatReadinessLabel->setText(flatReadiness.state == pt::launcher::ReadinessState::Ready ? QString() : readinessText("Flat", flatReadiness));
         vrReadiness->setText(vrModeReadiness.state == pt::launcher::ReadinessState::Ready ? QString() : readinessText("VR", vrModeReadiness));
         retryVr->setVisible(vrModeReadiness.state != pt::launcher::ReadinessState::Ready);
         retryVr->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped);
         settings->setEnabled(runtime && !preparing && !recoveryBlocked);
-        settings->setToolTip(runtime ? "" : "Align with a matching supported runtime to edit settings.");
+        settings->setToolTip(runtime ? "" : "Settings require the matching bundled runtime.");
         resume->setVisible(session.activity == pt::launcher::Activity::Running);
-        if (session.activity == pt::launcher::Activity::Running) warning->clear();
+        if (session.activity == pt::launcher::Activity::Running) {
+            logButton->show();
+            if (session.identity == vrAttemptIdentity) {
+                const auto outcome = pt::launcher::KnownVrFailure(session.log);
+                warning->setText(outcome.isEmpty() ? "VR requested. Headset presentation is unverified." : outcome);
+            } else warning->clear();
+        }
         else if (session.activity == pt::launcher::Activity::Uncertain) warning->setText(session.error.isEmpty() ? "Game activity uncertain. Play is blocked." : session.error);
         else if (recoveryBlocked) warning->setText("Game preparation is active or interrupted. Choose Recover preparation after it has stopped.");
         else if (!lastFailure.isEmpty()) warning->setText(lastFailure);
-        else if (!inspection.archives) warning->setText("Add your P.T. .pkg in Game files, or drop it here. The launcher will prepare it for you.");
+        else if (!inspection.archives) warning->setText("Choose your P.T. .pkg below, or drop it here. The launcher will prepare it for you.");
         else warning->setText(QString::fromStdString(inspection.error.empty() ?
             (runtime ? "" : inspection.linux_runtime.present || inspection.windows_runtime.present ?
               "Runtime unverified. Install a matching supported release to enable Play and Settings." :
@@ -376,6 +390,7 @@ int main(int argc, char** argv) {
     });
     QObject::connect(cancelPreparation, &QPushButton::clicked, &window, [&] { confirmCancellation(false); });
     auto launchFlat = [&](bool tryAnyway) {
+        vrAttemptIdentity.clear();
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
         launchPending = true;
         if (controllerAdapter) controllerAdapter->releaseForHandoff();
@@ -391,6 +406,7 @@ int main(int argc, char** argv) {
     QObject::connect(play, &QPushButton::clicked, &window, [&] { launchFlat(false); });
     QObject::connect(tryFlat, &QPushButton::clicked, &window, [&] { launchFlat(true); });
     QObject::connect(vr, &QPushButton::clicked, &window, [&] {
+        vrAttemptIdentity.clear();
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
         const bool tryAnyway = vrModeReadiness.state == pt::launcher::ReadinessState::Unknown;
         launchPending = true;
@@ -403,6 +419,7 @@ int main(int argc, char** argv) {
         });
         QObject::connect(launchThread, &QThread::finished, &window, [&, result] {
             launchPending = false;
+            vrAttemptIdentity = result->activity == pt::launcher::Activity::Running ? result->identity : QString();
             if (controllerAdapter && result->activity == pt::launcher::Activity::Stopped)
                 controllerAdapter->reopenAfterHandoff();
             if (!closing) {
@@ -538,7 +555,12 @@ int main(int argc, char** argv) {
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); scroll->setWidget(panel);
     layout->addWidget(scroll, 3);
     window.show();
-    controllerAdapter = new pt::launcher::ControllerAdapter(&window, [&] {
+    // Controller support is opt-in; ordinary desktop use needs no SDL device polling.
+    if (qEnvironmentVariableIsSet("PT_LAUNCHER_CONTROLLER")
+#ifdef PT_LAUNCHER_TEST_BUILD
+        || testMode.startsWith("--test-controller-")
+#endif
+    ) controllerAdapter = new pt::launcher::ControllerAdapter(&window, [&] {
         return !launchPending && (chosen.empty() || pt::launcher::InspectSession(chosen).activity == pt::launcher::Activity::Stopped);
     }, &window);
 #if defined(PT_LAUNCHER_TEST_BUILD) && defined(__linux__)
