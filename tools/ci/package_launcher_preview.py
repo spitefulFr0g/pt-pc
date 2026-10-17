@@ -90,7 +90,8 @@ def linux_deploy(root, qt):
     queue = [launcher, *plugins.rglob("*.so"), *runtime_binaries]
     seen = set()
     environment = os.environ.copy()
-    environment["LD_LIBRARY_PATH"] = str(libdir) + ":" + str(qt / "lib")
+    environment["LD_LIBRARY_PATH"] = os.pathsep.join((
+        str(libdir), str(root / "linux"), str(root / "linux" / "voice"), str(qt / "lib")))
     while queue:
         binary = queue.pop()
         if binary in seen:
