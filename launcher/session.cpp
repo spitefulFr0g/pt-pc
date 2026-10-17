@@ -116,7 +116,12 @@ static bool guarded(const fs::path& bundle, const std::function<void()>& action,
     const fs::path root = bundleAbsolute(bundle);
     if (!fs::is_directory(root)) { if (error) *error = "Bundle folder missing."; return false; }
     QLockFile lock(qpath(root / ".pt-launcher.lock")); lock.setStaleLockTime(0);
-    if (!lock.tryLock(0)) { if (error) *error = "Another launcher operation is active for this bundle."; return false; }
+    if (!lock.tryLock(0)) {
+        if (error) *error = lock.error() == QLockFile::PermissionError
+            ? "Cannot create the bundle operation lock. Check folder permissions and retry."
+            : "Another launcher operation is active for this bundle.";
+        return false;
+    }
     auto state = InspectSession(root);
     if (state.activity != Activity::Stopped) { if (error) *error = state.error.isEmpty() ? "Game activity blocks this operation." : state.error; return false; }
     action(); return true;

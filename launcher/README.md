@@ -162,8 +162,8 @@ The home screen uses the public `CheckReadiness` operation for each launch mode.
 The probe runs away from the Qt thread, bounds the OpenXR manifest to 64 KiB and
 the Linux loader inventory to two seconds, and presents unverified runtime
 hashes as unknown with mode-specific **Try Play anyway** and **Try VR anyway**
-actions. It only reads the active
-OpenXR registration and never changes the system selection or creates an XR
+actions. It only reads the active OpenXR registration and never changes the
+system selection or creates an XR
 instance. A discovered runtime is not evidence of headset connection or
 presentation. Flat launch keeps `--no-vr` even when the saved settings enable
 VR; the separate VR operation passes `--vr`, the same explicit bundle paths,
@@ -181,10 +181,67 @@ Run `launcher/run-issue10-qt612-container.sh [evidence-directory]` for the
 noninteractive Qt 6.12.0/GCC 13.3.0 harness. By default it writes under
 `/tmp/pt-launcher-issue10-evidence`. It configures and builds the launcher,
 drives the actual Qt unknown/Try Play anyway, Try VR anyway and Retry VR
-readiness controls, and
-runs controlled manifest, loader timeout, missing-loader, flat-independence,
+readiness controls, and runs controlled manifest, loader timeout, missing-loader, flat-independence,
 saved-preference, process-argument, session and window checks. Fixture runtime
 and loader files are disposable. This is Linux controlled-boundary evidence;
 Windows runtime/loader behavior, native headset presentation, and a physical
 device remain unverified. Ticket #11 launch outcome/fallback and ticket #12
 Linux loader packaging are not included.
+
+## Dump preparation acceptance (ticket #5)
+
+Run `launcher/run-issue5-acceptance.sh [evidence-directory]` from a
+noninteractive shell. The default evidence directory is
+`/tmp/pt-launcher-issue5-evidence`. The script provisions shared Qt 6.12.0 with
+`aqtinstall` when absent, then builds with GCC 13 in the pinned launcher preview
+build container and runs all launcher CTest checks. It returns nonzero on setup,
+build, or test failure. Override `PT_QT612_ROOT` or
+`PT_LAUNCHER_BUILD_IMAGE` to use an existing local copy. No game data or account
+is used.
+
+`launcher_preparation` exercises the public `PrepareGame` and
+`RecoverPreparation` operations against disposable synthetic archive headers.
+It covers successful dump copy/adoption, repeat preparation without reprocessing,
+source and player/unowned file preservation, update-check default adoption,
+source mutation during copy, cancellation, invalid source, Unicode/spaced paths,
+and initialization-journal recovery. Those fixtures are recognition fixtures;
+they are not real or playable game data. The GUI routes dump selection, progress,
+cancel confirmation and recovery through these same public operations. The
+suite exercises the Qt event-loop/session/window tests but does not automate
+a native human input session for the preparation prompt.
+
+Evidence must distinguish the exercised Qt offscreen/X11 controlled fixtures
+from Windows, native Wayland/SteamOS, and clean packaged runtime behavior. Those
+environments are outside this ticket harness and remain pending unless separate
+platform evidence is recorded.
+
+### Ticket #5 evidence (2026-10-17)
+
+`launcher/run-issue5-acceptance.sh /tmp/pt-issue5-evidence` passed on Ubuntu
+24.04 in `pt-launcher-preview-build-env-complete:latest`
+(`sha256:763f56146b3927b7e85b7b7197e0539fbddbb0856bb430020c54def74a5fa549`),
+with GCC 13.3.0, CMake 3.28.3, and shared Qt 6.12.0. All 5 CTest cases passed:
+`launcher_inspection`, `launcher_session`, `launcher_window`,
+`launcher_preparation`, and `launcher_preparation_ui`. Full configure/build/test
+logs are saved in `/tmp/pt-issue5-evidence/`.
+
+The public preparation checks include changed-source rejection during copy,
+mid-copy cancellation, one-time update-policy adoption, source and bundle
+preservation, same-operation re-adoption after moving to a Unicode path,
+interrupted initialization cleanup, rollback of a partially committed fixture,
+and a real Linux permission-denied lock attempt with a repairable error. The Qt
+UI check runs under Xvfb/xcb and verifies the safe focused default, unchanged
+focus during progress, and dismissal of the obsolete prompt after completion.
+All game archive contents are synthetic recognition fixtures, never playable
+data.
+
+Insufficient-space behavior is implemented as an available-space preflight but
+was not forced in this environment; the writable temporary filesystem had
+multiple GiB free. Windows/MSVC, native Wayland or SteamOS, clean packaged
+runtime behavior, and actual helper-process/GUI crash termination were not
+exercised by this ticket harness and remain pending. The journal recovery tests
+use controlled interrupted-state fixtures through the real public recovery
+operation.
+
+Red/green observations for the two defects found by these checks are recorded
+in `/tmp/pt-issue5-evidence/red-green.md` alongside the final run logs.

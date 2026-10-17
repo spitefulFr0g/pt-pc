@@ -149,6 +149,10 @@ int main(int argc, char** argv) {
     auto cancelRequested = std::make_shared<std::atomic<bool>>(false);
     QThread* preparationThread = nullptr;
     QPointer<QMessageBox> cancelPrompt;
+#ifdef PT_LAUNCHER_TEST_BUILD
+    QPointer<QWidget> preparationPromptFocus;
+    bool preparationPromptProgressSeen = false;
+#endif
     std::function<void()> refresh;
     auto readinessText = [](const QString& mode, const pt::launcher::ModeReadiness& state) {
         QString label = state.state == pt::launcher::ReadinessState::Ready ? "Ready" :
@@ -267,6 +271,12 @@ int main(int argc, char** argv) {
                     QMetaObject::invokeMethod(&window, [&, progress, cancelRequested] {
                         if (!preparing || cancelRequested->load()) return;
                         warning->setText(progress.message);
+#ifdef PT_LAUNCHER_TEST_BUILD
+                        if (testMode == "--test-preparation-prompt" && cancelPrompt && progress.total && preparationPromptFocus) {
+                            preparationPromptProgressSeen = true;
+                            if (QApplication::focusWidget() != preparationPromptFocus) qFatal("Preparation progress changed Qt focus");
+                        }
+#endif
                         if (progress.total) {
                             preparationBar->setRange(0, 1000);
                             preparationBar->setValue(int(std::min(1.0, double(progress.done) / double(progress.total)) * 1000));
@@ -396,6 +406,23 @@ int main(int argc, char** argv) {
                 QTimer::singleShot(250, &window, [] { QApplication::quit(); });
             });
             readinessWait->start(); return;
+        }
+        if (testMode == "--test-preparation-prompt") {
+            const QByteArray source = qgetenv("PT_LAUNCHER_TEST_SOURCE");
+            if (source.isEmpty()) qFatal("Test preparation source is missing");
+            prepare(QString::fromUtf8(source), false);
+            confirmCancellation(false);
+            if (!cancelPrompt || !cancelPrompt->defaultButton() || cancelPrompt->defaultButton()->text() != "Keep preparing") qFatal("Keep preparing is not the prompt default");
+            QTimer::singleShot(50, &window, [&] {
+                preparationPromptFocus = QApplication::focusWidget();
+                if (!preparationPromptFocus) qFatal("Preparation prompt did not receive focus");
+                if (preparationPromptFocus != cancelPrompt->defaultButton()) qFatal("Keep preparing is not the focused default action");
+            });
+            QTimer::singleShot(1500, &window, [&] {
+                if (!preparationPromptProgressSeen || cancelPrompt) qFatal("Cancellation prompt was not dismissed after preparation completion");
+                QApplication::quit();
+            });
+            return;
         }
         if (testMode == "--test-reconnect") {
             if (play->isEnabled() || !resume->isVisible()) std::abort();

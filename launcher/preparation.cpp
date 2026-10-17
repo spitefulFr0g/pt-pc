@@ -362,8 +362,23 @@ PreparationResult PrepareGame(const fs::path& bundle, const fs::path& input, con
                     if (source.kind == setup::SourceKind::Package) extract(root, stage, fs::absolute(source.path), cancelled, progress);
                     else {
                         ordinary(source.files.psarc); ordinary(source.files.qar); if (!source.files.pathid.empty()) ordinary(source.files.pathid);
-                        setup::progress.Begin(fs::file_size(source.files.psarc) + fs::file_size(source.files.qar) + (source.files.pathid.empty() ? 0 : fs::file_size(source.files.pathid)));
+                        const fs::path sourceFiles[] = {source.files.psarc, source.files.qar, source.files.pathid};
+                        const char* archiveNames[] = {"chunk1.psarc", "texture.qar", "pathid_list_ps4.bin"};
+                        QByteArray sourceDigests[3];
+                        uint64_t totalBytes = 0;
+                        for (int i = 0; i < 3; ++i) if (!sourceFiles[i].empty()) {
+                            sourceDigests[i] = digest(sourceFiles[i], cancelled);
+                            totalBytes += fs::file_size(sourceFiles[i]);
+                        }
+                        setup::progress.Begin(totalBytes);
                         setup::CopyArchives(source.files, fresh / "CUSA01127");
+                        for (int i = 0; i < 3; ++i) if (!sourceFiles[i].empty()) {
+                            check(cancelled);
+                            const auto sourceAfter = digest(sourceFiles[i], cancelled);
+                            const auto copied = digest(fresh / "CUSA01127" / archiveNames[i], cancelled);
+                            if (sourceAfter != sourceDigests[i] || copied != sourceDigests[i])
+                                fail("The selected game dump changed while it was being copied. Keep the source unchanged and retry preparation.");
+                        }
                     }
                     safeTree(stage);
                     auto assets = fresh / "CUSA01127";
