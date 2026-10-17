@@ -21,7 +21,7 @@ When preparation succeeds, choose **Play**.
 
 ## Unsigned paired preview bundles
 
-The manual workflow builds the current launcher natively with shared Qt 6.12.0
+The pull-request and manual workflow builds the current launcher natively with shared Qt 6.12.0
 and pairs it with the published upstream v1.0.5 portable runtime. The Windows
 and Linux runtime ZIPs have fixed SHA-256 pins in
 `tools/ci/fetch_launcher_preview_runtime.py`; replacement assets fail verification.
@@ -45,9 +45,12 @@ gh workflow run launcher-preview.yml --repo spitefulFr0g/pt-pc \
   --ref integration/launcher -f version=0.1.0-preview.2 -f create_draft=true
 ```
 
-Both platform jobs must build and smoke-check successfully before CI creates an
-unpublished draft prerelease. Download and test its Windows ZIP and Linux tar.gz,
-then publish the draft when ready. No signing secret is needed. Build evidence
+Ordinary pull requests run the single Windows/Linux matrix and retain bundles
+and evidence as Actions artifacts without creating a release. Qt and the pinned
+upstream archives are cached; archive hashes are rechecked on every build.
+Both platform jobs must build and smoke-check successfully before an explicitly
+requested manual run creates an unpublished draft prerelease. Download its
+Windows ZIP and Linux tar.gz for testing. Publication is a separate user action. No signing secret is needed. Build evidence
 and temporary Actions artifacts are retained for 14 days; draft release assets
 remain attached to the release. The launcher preview tag does not trigger the
 separate macOS game packaging workflow.
@@ -92,8 +95,10 @@ notices.
 Import a package or extracted folder through the launcher as described above.
 Existing manually prepared bundles with the archives under `CUSA01127` at the
 bundle root can still be selected with **Open existing portable bundle**. The
-preview covers preparation, bundle inspection and flat launch with the matching runtime.
-Ticket #10 adds independent flat/VR readiness and a separate VR attempt. It does not establish headset presentation. Controller features, secure updating,
+preview covers preparation and Play / Play VR with the matching runtime.
+VR requires a compatible graphics driver and installed host OpenXR runtime; the
+wrapper does not configure VR services. Missing VR prerequisites leave flat play
+available. A successful process start does not establish headset presentation. Controller features, secure updating,
 native Wayland, SteamOS/Hyprland/Gaming Mode, and gameplay remain unverified or
 pending. A passing CI smoke run is not a gameplay result.
 
