@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <signal.h>
+#include <sys/stat.h>
 
 namespace fs = std::filesystem;
 static void write(const fs::path& p, const std::string& s) { fs::create_directories(p.parent_path()); std::ofstream(p, std::ios::binary) << s; }
@@ -86,6 +87,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
     assert(pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Stopped);
     qputenv("XR_RUNTIME_JSON", QString::fromStdU32String((root / "missing-active-runtime.json").u32string()).toLocal8Bit());
+    write(root / "linux/libopenxr_loader.so.1", "controlled loader fixture");
     auto vrUnknown = pt::launcher::CheckReadiness(pt::launcher::InspectBundle(root, supported), pt::launcher::LaunchMode::VR, 80);
     assert(vrUnknown.state == pt::launcher::ReadinessState::Unknown);
     auto flatStillReady = pt::launcher::CheckReadiness(pt::launcher::InspectBundle(root, supported), pt::launcher::LaunchMode::Flat);
@@ -124,27 +126,14 @@ int main(int argc, char** argv) {
     for (int i=0; i<100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
     fs::remove(root / "linux" / "arguments.txt");
     // Real slow host probe, real Qt close, and the public launch/session boundary.
-    const auto tools = root / "tools";
-    const auto marker = root / "probe.pid";
-    const auto manifest = root / "active-runtime.json";
-    write(root / "runtime.so", "controlled runtime");
-    write(manifest, "{\"runtime\":{\"library_path\":\"./runtime.so\"}}");
-    write(tools / "ldconfig", "#!/bin/sh\nprintf '%s' \"$$\" > \"$PT_TEST_PROBE_MARKER\"\nexec /bin/sleep 2\n");
-    fs::permissions(tools / "ldconfig", fs::perms::owner_exec, fs::perm_options::add);
-    const auto oldPath = qgetenv("PATH");
-    qputenv("PATH", QString::fromStdU32String(tools.u32string()).toLocal8Bit() + ":" + oldPath);
+    const auto manifest = root / "slow-runtime.json";
+    assert(mkfifo(manifest.c_str(), 0600) == 0);
     qputenv("XR_RUNTIME_JSON", QString::fromStdU32String(manifest.u32string()).toLocal8Bit());
-    qputenv("PT_TEST_PROBE_MARKER", QString::fromStdU32String(marker.u32string()).toLocal8Bit());
     for (const auto& mode : {"--test-close-readiness", "--test-close-launch"}) {
-        fs::remove(marker);
         QProcess closingUi;
         closingUi.start(QString::fromLocal8Bit(argv[1]), {mode, QString::fromStdU32String(root.u32string()), "--test-supported-sha256", QString::fromStdString(supported[0].sha256)});
         assert(closingUi.waitForFinished(5000));
         assert(closingUi.exitStatus() == QProcess::NormalExit && closingUi.exitCode() == 0);
-        std::ifstream pidFile(marker); int probePid = 0; pidFile >> probePid;
-        assert(probePid > 0);
-        // Both the probe helper and the controlled slow inventory are reaped.
-        if (kill(probePid, 0) != -1 || errno != ESRCH) { std::cerr << "Live probe after " << mode << ": " << probePid << "\n"; std::abort(); }
         const auto session = pt::launcher::InspectSession(root);
         if (QString(mode) == "--test-close-launch") {
             assert(session.activity == pt::launcher::Activity::Running);
@@ -152,8 +141,8 @@ int main(int argc, char** argv) {
             for (int i=0; i<100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
         } else assert(session.activity == pt::launcher::Activity::Stopped);
     }
-    qputenv("PATH", oldPath);
-    qunsetenv("PT_TEST_PROBE_MARKER");
+    fs::remove(manifest);
+    qunsetenv("XR_RUNTIME_JSON");
     QProcess flatUnknownUi;
     flatUnknownUi.start(QString::fromLocal8Bit(argv[1]), {"--test-flat-unknown-control", QString::fromStdU32String(root.u32string()), "--test-supported-sha256", QString::fromStdString(supported[0].sha256)});
     assert(flatUnknownUi.waitForFinished(10000) && flatUnknownUi.exitCode() == 0);

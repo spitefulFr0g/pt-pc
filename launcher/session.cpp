@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QLockFile>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <cerrno>
 #include <fstream>
 #include <sstream>
@@ -230,6 +231,12 @@ static SessionState play(const fs::path& bundle, const std::vector<SupportedRunt
         process.setProgram(qpath(executable)); process.setArguments(arguments);
         process.setWorkingDirectory(qpath(executable.parent_path()));
 #ifdef __linux__
+        auto environment = QProcessEnvironment::systemEnvironment();
+        // The executable RUNPATH finds the bundled loader. Do not inherit a
+        // developer SDK's library injection; keep the user's XR runtime selection.
+        environment.remove("LD_LIBRARY_PATH");
+        environment.remove("LD_PRELOAD");
+        process.setProcessEnvironment(environment);
         process.setUnixProcessParameters(QProcess::UnixProcessFlag::CreateNewSession);
 #endif
         if (!process.startDetached(&pid)) failure = "Could not start the game process. Open the game log and retry.";

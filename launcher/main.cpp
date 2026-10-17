@@ -473,16 +473,13 @@ int main(int argc, char** argv) {
         auto* closeTimer = new QTimer(&window); closeTimer->setInterval(1);
         auto launchStarted = std::make_shared<bool>(false);
         QObject::connect(closeTimer, &QTimer::timeout, &window, [&, closeTimer, launchStarted, testMode] {
-            const auto marker = qEnvironmentVariable("PT_TEST_PROBE_MARKER");
             if (testMode == "--test-close-launch" && !*launchStarted) {
                 if (readinessPending || !cachedInspection) return;
-                QFile::remove(marker);
                 *launchStarted = true;
                 vr->click();
                 return;
             }
-            if (!QFileInfo::exists(marker)) return;
-            if (testMode == "--test-close-readiness" ? !readinessPending : !launchPending) std::_Exit(87);
+            if (testMode == "--test-close-readiness" ? !readinessPending : !launchPending) return;
             closeTimer->stop(); window.close();
         });
         closeTimer->start();

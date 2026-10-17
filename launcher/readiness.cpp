@@ -84,6 +84,8 @@ static ModeReadiness InspectReadiness(const BundleInspection& bundle, LaunchMode
         return blocked(mode, "The registered OpenXR runtime library is missing. Repair its runtime, then Retry.");
     return unknown(mode, "The matching runtime, bundled OpenXR loader, and active runtime registration were found. Headset connection and runtime suitability remain unknown; choose Try VR anyway to attempt launch.");
 #elif defined(__linux__)
+    if (!QFileInfo(QString::fromStdU32String((bundle.root / "linux" / "libopenxr_loader.so.1").u32string())).isFile())
+        return blocked(mode, "The bundled OpenXR loader is missing. Flat play remains available.");
     const QString manifest = activeManifest();
     if (manifest.isEmpty()) return unknown(mode, "Active OpenXR runtime discovery is inconclusive. Check your runtime configuration, then Retry or choose Try VR anyway.");
     QFile file(manifest);
@@ -98,36 +100,7 @@ static ModeReadiness InspectReadiness(const BundleInspection& bundle, LaunchMode
     const auto libraryPath = QFileInfo(library).isAbsolute() ? library : QFileInfo(manifest).dir().absoluteFilePath(library);
     if (!QFileInfo(libraryPath).isFile()) return blocked(mode, "The active OpenXR runtime library is missing. Repair its runtime, then Retry.");
 
-    QElapsedTimer timer; timer.start();
-    QProcess loaderProbe;
-    loaderProbe.setProgram(QStandardPaths::findExecutable("ldconfig"));
-    if (loaderProbe.program().isEmpty()) return unknown(mode, "The system loader inventory is unavailable. Choose Try VR anyway to attempt launch.");
-    loaderProbe.setArguments({"-p"});
-    loaderProbe.setProcessChannelMode(QProcess::MergedChannels);
-    loaderProbe.start();
-    const int boundedTimeout = qBound(1, probeTimeoutMs, 2000);
-    if (!loaderProbe.waitForStarted(std::min(50, boundedTimeout)))
-        return unknown(mode, "The OpenXR loader inventory did not start promptly. Choose Try VR anyway to attempt launch.");
-    QByteArray inventory;
-    while (loaderProbe.state() != QProcess::NotRunning && timer.elapsed() < boundedTimeout) {
-        loaderProbe.waitForReadyRead(std::min(10, std::max(1, boundedTimeout - int(timer.elapsed()))));
-        inventory += loaderProbe.read(64 * 1024 + 1);
-        if (inventory.size() > 64 * 1024) {
-            loaderProbe.kill(); loaderProbe.waitForFinished(50);
-            return unknown(mode, "The OpenXR loader inventory exceeded its output limit. Choose Try VR anyway.");
-        }
-    }
-    if (loaderProbe.state() != QProcess::NotRunning) {
-        loaderProbe.kill(); loaderProbe.waitForFinished(50);
-        return unknown(mode, "The OpenXR loader inventory timed out. Choose Try VR anyway to attempt launch.");
-    }
-    inventory += loaderProbe.read(64 * 1024 + 1);
-    if (inventory.size() > 64 * 1024) return unknown(mode, "The OpenXR loader inventory exceeded its output limit. Choose Try VR anyway.");
-    if (loaderProbe.exitStatus() != QProcess::NormalExit || loaderProbe.exitCode() != 0)
-        return unknown(mode, "The OpenXR loader inventory could not be confirmed. Choose Try VR anyway to attempt launch.");
-    if (!inventory.contains("libopenxr_loader.so.1"))
-        return unknown(mode, "The system inventory does not establish OpenXR loader availability; private loader discovery remains unknown. Choose Try VR anyway to attempt launch.");
-    return unknown(mode, "The supported game runtime, OpenXR loader, and active runtime registration were found. Headset connection and runtime suitability remain unknown; choose Try VR anyway to attempt launch.");
+    return unknown(mode, "The bundled OpenXR loader and active runtime registration were found. Headset connection remains unknown; choose Try VR anyway.");
 #else
     Q_UNUSED(probeTimeoutMs)
     return unknown(mode, "VR readiness is not probed on this platform. Choose Try VR anyway to attempt launch.");
