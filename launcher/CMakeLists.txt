@@ -174,3 +174,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test(NAME launcher_supervisor COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/supervisor_test.py $<TARGET_FILE:pt_launcher>)
   set_tests_properties(launcher_supervisor PROPERTIES TIMEOUT 40)
 endif()
+
+# Optional controlled Linux OpenXR loader boundary check, using a staged game
+# build and the generated headless OpenXR registration from that same build.
+set(PT_LAUNCHER_VR_ACCEPTANCE_PACKAGE "" CACHE PATH "Packaged Linux runtime folder for the OpenXR acceptance test")
+set(PT_LAUNCHER_VR_ACCEPTANCE_MANIFEST "" CACHE FILEPATH "Headless OpenXR test-runtime manifest for ticket #12")
+set(PT_LAUNCHER_VR_ACCEPTANCE_INCLUDE "" CACHE PATH "OpenXR headers for the controlled game-runtime fixture")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PT_LAUNCHER_VR_ACCEPTANCE_PACKAGE AND
+   PT_LAUNCHER_VR_ACCEPTANCE_MANIFEST AND PT_LAUNCHER_VR_ACCEPTANCE_INCLUDE)
+  add_executable(pt_launcher_vr_loader_fixture tests/vr_loader_game_fixture.cpp)
+  target_include_directories(pt_launcher_vr_loader_fixture PRIVATE "${PT_LAUNCHER_VR_ACCEPTANCE_INCLUDE}")
+  target_link_libraries(pt_launcher_vr_loader_fixture PRIVATE ${CMAKE_DL_LIBS})
+  set_target_properties(pt_launcher_vr_loader_fixture PROPERTIES BUILD_RPATH "$ORIGIN")
+  add_executable(pt_launcher_vr_loader_acceptance_test tests/vr_loader_acceptance_test.cpp)
+  target_link_libraries(pt_launcher_vr_loader_acceptance_test PRIVATE pt_launcher_session)
+  target_compile_options(pt_launcher_vr_loader_acceptance_test PRIVATE -UNDEBUG)
+  add_test(NAME launcher_vr_loader_acceptance
+    COMMAND $<TARGET_FILE:pt_launcher_vr_loader_acceptance_test>
+      "${PT_LAUNCHER_VR_ACCEPTANCE_PACKAGE}"
+      $<TARGET_FILE:pt_launcher_vr_loader_fixture>
+      "${PT_LAUNCHER_VR_ACCEPTANCE_MANIFEST}")
+  set_tests_properties(launcher_vr_loader_acceptance PROPERTIES TIMEOUT 180)
+  set_tests_properties(launcher_vr_loader_acceptance PROPERTIES ENVIRONMENT "QT_PLUGIN_PATH=${pt_qt_plugins}")
+endif()
