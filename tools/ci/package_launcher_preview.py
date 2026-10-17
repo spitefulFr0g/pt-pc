@@ -81,7 +81,13 @@ def linux_deploy(root, qt):
     libdir = root / "lib"
     libdir.mkdir(exist_ok=True)
     distro_packages = set()
-    queue = [launcher, *plugins.rglob("*.so")]
+    runtime_binaries = []
+    for path in (root / "linux").rglob("*"):
+        if path.is_file():
+            with path.open("rb") as stream:
+                if stream.read(4) == b"\x7fELF":
+                    runtime_binaries.append(path)
+    queue = [launcher, *plugins.rglob("*.so"), *runtime_binaries]
     seen = set()
     environment = os.environ.copy()
     environment["LD_LIBRARY_PATH"] = str(libdir) + ":" + str(qt / "lib")
@@ -117,6 +123,11 @@ def linux_deploy(root, qt):
         subprocess.run(["patchelf", "--set-rpath", "$ORIGIN/../../../lib", str(plugin)], check=True)
     for library in libdir.iterdir():
         subprocess.run(["patchelf", "--set-rpath", "$ORIGIN", str(library)], check=True)
+    # Keep pinned runtime bytes unchanged. Its existing $ORIGIN lookup uses
+    # private copies beside the game, independent of launcher Qt libraries.
+    for library in libdir.iterdir():
+        if not library.name.startswith("libQt6"):
+            shutil.copy2(library, root / "linux" / library.name)
     notices = root / "notices/linux-dependencies"
     notices.mkdir(parents=True)
     for package in sorted(distro_packages):
@@ -204,6 +215,14 @@ def main():
                 "package extraction helper license or corresponding source missing")
         if args.platform == "linux":
             require(os.access(helper, os.X_OK), "Linux package extraction helper is not executable")
+            require(os.access(executable, os.X_OK), "Linux runtime is not executable")
+            loader = destination / "libopenxr_loader.so.1"
+            require(loader.is_file() and digest(loader) == origin.get("openxr_loader_sha256"),
+                    "Linux OpenXR loader missing or differs from build provenance")
+            require(origin.get("build_options", {}).get("PT_OPENXR") == "ON",
+                    "Linux runtime must be built with OpenXR enabled")
+            for name in ("OpenXR-LICENSE.txt", "OpenXR-MIT.txt"):
+                require((destination / "licenses" / name).is_file(), f"missing {name}")
         for stale in ("pt-updater", "pt-updater.exe", "pt-files.json"):
             (destination / stale).unlink(missing_ok=True)
         require(digest(destination / ("pt.exe" if args.platform == "windows" else "pt")) == runtime_sha,
@@ -246,7 +265,7 @@ def main():
         (root / "PREVIEW-NOTICES.md").write_text(
             f"# Unsigned portable preview\n\n"
             f"This test bundle contains the pt-pc launcher from revision {args.revision} "
-            "and the pinned upstream v1.0.5 runtime described in the platform's runtime-origin.json. "
+            "and the runtime described in the platform's runtime-origin.json (Linux is rebuilt with OpenXR; Windows uses pinned v1.0.5). "
             "It is unsigned and has no secure updater or automatic preview update path. "
             "Game archives are supplied by the player.\n\n"
             f"Qt {qt_version(qt)} shared libraries and plugins are included under the "

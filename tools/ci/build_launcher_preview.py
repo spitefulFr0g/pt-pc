@@ -53,7 +53,7 @@ def main():
                           cwd=REPO, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
             run("git", "fetch", "--no-tags", "--depth=1", "https://github.com/LoreanXavier/pt-pc.git",
                 RELEASE_SOURCE_REVISION)
-        run("git", "diff", "--exit-code", RELEASE_SOURCE_REVISION, revision, "--", "src", "cmake", "CMakeLists.txt")
+        run("git", "diff", "--exit-code", RELEASE_SOURCE_REVISION, revision, "--", "src")
         (evidence / "environment.json").write_text(json.dumps({
             "launcher_revision": revision, "platform": platform.platform(), "python": sys.version,
             "qt_prefix": env.get("QT_ROOT"), "runtime_release_source_revision": RELEASE_SOURCE_REVISION,
@@ -65,6 +65,33 @@ def main():
         if args.runtime_archive:
             fetch += ["--archive", args.runtime_archive.resolve()]
         run(*fetch)
+        if args.platform == "linux":
+            # The release archive supplies pinned auxiliary assets, but its game
+            # was built without VR. Build unchanged engine source with OpenXR.
+            game = work / "game"
+            run("cmake", "-S", REPO, "-B", game, "-G", "Ninja",
+                "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_C_COMPILER=gcc-13",
+                "-DCMAKE_CXX_COMPILER=g++-13", "-DPT_OPENXR=ON", "-DPT_UPSCALERS=OFF")
+            run("cmake", "--build", game, "--target", "pt", "pt_lisa_date_assets",
+                "--parallel", args.jobs)
+            for name in ("pt", "libopenxr_loader.so.1"):
+                shutil.copy2(game / name, runtime / name)
+            for name in ("shaders", "fonts", "voice", "lisa_date", "licenses"):
+                shutil.copytree(game / name, runtime / name, dirs_exist_ok=True)
+            sdk = game / "_deps/upscaler-sdks/openxr-1.1.63"
+            for source, name in ((sdk / "LICENSE", "OpenXR-LICENSE.txt"),
+                                 (sdk / "LICENSES/MIT.txt", "OpenXR-MIT.txt")):
+                shutil.copy2(source, runtime / "licenses" / name)
+            origin_path = runtime / "runtime-origin.json"
+            origin = json.loads(origin_path.read_text())
+            origin["asset_archive_executable_sha256"] = origin["executable_sha256"]
+            origin.update({"kind": "source-build-with-pinned-release-assets",
+                           "source_revision": revision,
+                           "build_options": {"PT_OPENXR": "ON", "PT_UPSCALERS": "OFF"},
+                           "compiler": subprocess.check_output(["g++-13", "--version"], text=True).strip(),
+                           "executable_sha256": hashlib.sha256((runtime / "pt").read_bytes()).hexdigest(),
+                           "openxr_loader_sha256": hashlib.sha256((runtime / "libopenxr_loader.so.1").read_bytes()).hexdigest()})
+            origin_path.write_text(json.dumps(origin, indent=2) + "\n")
         executable = runtime / ("pt.exe" if args.platform == "windows" else "pt")
         with executable.open("rb") as binary:
             runtime_hash = hashlib.file_digest(binary, "sha256").hexdigest()
@@ -93,7 +120,7 @@ def main():
             configure += ["-DCMAKE_CXX_COMPILER=cl", "-DZLIB_ROOT=" + str(zlib_install),
                           "-DZLIB_USE_STATIC_LIBS=ON", "-DZLIB_LIBRARY_RELEASE=" + str(zlib_library)]
         else:
-            configure += ["-DCMAKE_CXX_COMPILER=g++-13"]
+            configure += ["-DCMAKE_CXX_COMPILER=g++-13", "-DPT_SUPPORTED_LINUX_VR=ON"]
         run(*configure)
         run("cmake", "--build", launcher, "--parallel", args.jobs)
         env["QT_QPA_PLATFORM"] = "offscreen"
