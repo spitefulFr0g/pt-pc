@@ -176,8 +176,12 @@ def main():
     suffix = ".zip" if args.platform == "windows" else ".tar.gz"
     args.out.mkdir(parents=True, exist_ok=True)
     archive = args.out / (name + suffix)
-    require(not archive.exists(), f"output exists: {archive}")
-    with tempfile.TemporaryDirectory(prefix="pt-preview-") as scratch:
+    external_inventory = args.out / (name + "-inventory.json")
+    sidecar = archive.with_name(archive.name + ".sha256")
+    for output in (archive, external_inventory, sidecar):
+        require(not output.exists(), f"output exists: {output}")
+    # Finish all files on the output filesystem before exposing release artifacts.
+    with tempfile.TemporaryDirectory(prefix=".pt-preview-", dir=args.out) as scratch:
         scratch = Path(scratch)
         if launcher_build:
             stage = scratch / "stage"
@@ -262,19 +266,22 @@ def main():
                      "version": args.version, "revision": args.revision, "qt_version": qt_version(qt),
                      "runtime_source_sha256": runtime_sha, "supported_runtime_sha256": runtime_sha, "files": files}
         (root / "preview-inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
-        external_inventory = args.out / (name + "-inventory.json")
-        require(not external_inventory.exists(), f"output exists: {external_inventory}")
-        external_inventory.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+        pending_inventory = scratch / external_inventory.name
+        pending_archive = scratch / archive.name
+        pending_sidecar = scratch / sidecar.name
+        pending_inventory.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
         if args.platform == "windows":
-            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
+            with zipfile.ZipFile(pending_archive, "w", zipfile.ZIP_DEFLATED) as output:
                 for path in sorted(root.rglob("*")):
                     if path.is_file():
                         output.write(path, Path(name) / path.relative_to(root))
         else:
-            with tarfile.open(archive, "w:gz") as output:
+            with tarfile.open(pending_archive, "w:gz") as output:
                 output.add(root, arcname=name)
-    sidecar = archive.with_name(archive.name + ".sha256")
-    sidecar.write_text(f"{digest(archive)}  {archive.name}\n", encoding="ascii")
+        pending_sidecar.write_text(f"{digest(pending_archive)}  {archive.name}\n", encoding="ascii")
+        for pending, final in ((pending_inventory, external_inventory),
+                               (pending_sidecar, sidecar), (pending_archive, archive)):
+            pending.replace(final)
     print(archive)
     print(sidecar)
     print(external_inventory)
