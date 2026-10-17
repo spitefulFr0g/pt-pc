@@ -79,11 +79,32 @@ jobs:
             libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             xvfb xauth xdotool openbox
-      - name: Vulkan SDK
+      - name: Linux Vulkan SDK
+        if: runner.os == 'Linux'
         uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
         with:
           version: 1.4.357.0
           cache: true
+      - name: Windows Vulkan SDK
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'vulkan-sdk-1.4.357.0.exe'
+          $sdk = Join-Path $env:RUNNER_TEMP 'VulkanSDK\1.4.357.0'
+          Invoke-WebRequest 'https://sdk.lunarg.com/sdk/download/1.4.357.0/windows/vulkan_sdk.exe' -OutFile $installer
+          if ((Get-AuthenticodeSignature $installer).Status -ne 'Valid') {
+            throw 'The downloaded Vulkan SDK installer has no valid Authenticode signature'
+          }
+          Get-FileHash $installer -Algorithm SHA256 | Format-List
+          # 7-Zip extracts only the tools archive from this SDK. Use LunarG's
+          # supported copy-only installation to include headers and libraries.
+          & $installer --root $sdk --accept-licenses --default-answer --confirm-command install copy_only=1
+          if ($LASTEXITCODE -ne 0) { throw "Vulkan SDK installation failed: $LASTEXITCODE" }
+          foreach ($file in @('Include\vulkan\vulkan.h', 'Lib\vulkan-1.lib', 'Bin\glslc.exe')) {
+            if (!(Test-Path (Join-Path $sdk $file))) { throw "Missing Vulkan SDK file: $file" }
+          }
+          "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
+          "$sdk\Bin" >> $env:GITHUB_PATH
       - name: Install shared Qt 6.12.0
         env:
           PREVIEW_PLATFORM: ${{ matrix.platform }}

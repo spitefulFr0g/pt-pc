@@ -70,7 +70,8 @@ def main():
             # Initialize once before Ninja starts multiple shader compiler jobs.
             run("wineboot", "--init")
         configure = ["cmake", "-S", REPO, "-B", runtime, "-G", "Ninja",
-                     "-DCMAKE_BUILD_TYPE=Release", "-DPT_UPSCALERS=ON", "-DPT_GAMEPLUS=ON"]
+                     "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_CXX_SCAN_FOR_MODULES=OFF",
+                     "-DPT_UPSCALERS=ON", "-DPT_GAMEPLUS=ON"]
         if args.platform == "windows":
             configure += ["-DCMAKE_C_COMPILER=clang-cl", "-DCMAKE_CXX_COMPILER=clang-cl",
                           "-DPT_REQUIRE_UPSCALERS=ON"]
