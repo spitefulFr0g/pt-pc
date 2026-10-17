@@ -22,7 +22,7 @@ static RuntimeInspection runtime(const fs::path& root, const char* program, cons
             const auto digest = hash.result().toHex().toStdString();
             for (const auto& release : supported) {
                 if (release.platform == platform && release.sha256 == digest) {
-                    result.verified = true; result.version = release.version; break;
+                    result.verified = true; result.version = release.version; result.supports_vr = release.supports_vr; break;
                 }
             }
         }

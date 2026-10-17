@@ -93,7 +93,7 @@ Import a package or extracted folder through the launcher as described above.
 Existing manually prepared bundles with the archives under `CUSA01127` at the
 bundle root can still be selected with **Open existing portable bundle**. The
 preview covers preparation, bundle inspection and flat launch with the matching runtime.
-Integrated settings, VR, controller features, secure updating,
+Ticket #10 adds independent flat/VR readiness and a separate VR attempt. It does not establish headset presentation. Controller features, secure updating,
 native Wayland, SteamOS/Hyprland/Gaming Mode, and gameplay remain unverified or
 pending. A passing CI smoke run is not a gameplay result.
 
@@ -156,6 +156,38 @@ On X11, Return to game uses `xdotool` when available; on Wayland, the launcher
 points to the compositor's window switcher. Windows 11 MSVC/Qt build and runtime
 checks remain pending because the MSVC x64 toolset is unavailable on this host.
 
+## Independent flat and VR readiness (issue #10)
+
+The home screen uses the public `CheckReadiness` operation for each launch mode.
+The probe runs away from the Qt thread, bounds the OpenXR manifest to 64 KiB and
+the Linux loader inventory to two seconds, and presents unverified runtime
+hashes as unknown with mode-specific **Try Play anyway** and **Try VR anyway**
+actions. It only reads the active OpenXR registration and never changes the
+system selection or creates an XR
+instance. A discovered runtime is not evidence of headset connection or
+presentation. Flat launch keeps `--no-vr` even when the saved settings enable
+VR; the separate VR operation passes `--vr`, the same explicit bundle paths,
+and `--no-update-check` without writing the saved preference.
+
+`PT_SUPPORTED_LINUX_VR` and `PT_SUPPORTED_WINDOWS_VR` declare OpenXR support for
+the exact runtime hashes paired into a launcher build. The pinned Linux preview
+runtime hash `691e4667ce082b10d82cd0814ee577a147895caaecd4961d54042c4d6165e114`
+contains the upstream no-OpenXR build branch, so it is marked VR-blocked while
+flat remains available. Windows defaults to OpenXR-capable; readiness still
+requires its bundled loader and otherwise reports a blocker. These declarations
+must be revisited with each supported runtime revision.
+
+Run `launcher/run-issue10-qt612-container.sh [evidence-directory]` for the
+noninteractive Qt 6.12.0/GCC 13.3.0 harness. By default it writes under
+`/tmp/pt-launcher-issue10-evidence`. It configures and builds the launcher,
+drives the actual Qt unknown/Try Play anyway, Try VR anyway and Retry VR
+readiness controls, and runs controlled manifest, loader timeout, missing-loader, flat-independence,
+saved-preference, process-argument, session and window checks. Fixture runtime
+and loader files are disposable. This is Linux controlled-boundary evidence;
+Windows runtime/loader behavior, native headset presentation, and a physical
+device remain unverified. Ticket #11 launch outcome/fallback and ticket #12
+Linux loader packaging are not included.
+
 ## Dump preparation acceptance (ticket #5)
 
 Run `launcher/run-issue5-acceptance.sh [evidence-directory]` from a
@@ -203,13 +235,34 @@ focus during progress, and dismissal of the obsolete prompt after completion.
 All game archive contents are synthetic recognition fixtures, never playable
 data.
 
-Insufficient-space behavior is implemented as an available-space preflight but
-was not forced in this environment; the writable temporary filesystem had
-multiple GiB free. Windows/MSVC, native Wayland or SteamOS, clean packaged
-runtime behavior, and actual helper-process/GUI crash termination were not
-exercised by this ticket harness and remain pending. The journal recovery tests
-use controlled interrupted-state fixtures through the real public recovery
-operation.
+The escalation harness `launcher_preparation_process` now runs actual public
+preparation in disposable children and sends SIGKILL during copying, immediately
+after archive placement, after the settings backup rename, and after settings
+placement. A Linux-only LD_PRELOAD test library stops at successful rename
+boundaries; production has no fault-injection environment switches. Each case
+attempts concurrent Play/preparation/guarded writes while preparation holds the
+bundle lock, then uses public recovery and retry, asserting original source,
+previous archives/metadata/settings, player data, and unowned bytes survive.
+
+A real non-dumpable controlled process denies `/proc/PID/exe` inspection while
+leaving cmdline readable. This exposed a fail-open Linux activity check; the
+regression now verifies Uncertain and blocked Play/preparation/recovery/writes.
+A syscall fixture also reproduces ESRCH during procfs cmdline reading, found
+during a full-suite run, and verifies inspection safely handles process exit.
+The space check runs separately with `TMPDIR` on a Docker-owned 64 MiB tmpfs,
+asserts actual `std::filesystem::space` is below 3 GiB, and verifies the public
+preflight rejects preparation without changing source/player data or staging.
+No large allocation or host mount modification is needed.
+
+Committed escalation logs: `launcher/evidence/issue5-r2/`.
+External escalation evidence: `/tmp/pt-issue5-r2-red/ctest.log` records the uninspectable
+process regression failing before the source fix;
+`/tmp/pt-issue5-r2-proc-race-red/ctest.log` records the procfs race regression; `/tmp/pt-issue5-r2-final/`
+records all six CTest cases plus the separate real-space preflight. The exact
+noninteractive command is
+`launcher/run-issue5-acceptance.sh /tmp/pt-issue5-r2-final`.
+These source-level Linux controlled-process results do not establish packaged
+GUI/helper termination, Windows, native Wayland or SteamOS gates (#24/#26/#27).
 
 Red/green observations for the two defects found by these checks are recorded
 in `/tmp/pt-issue5-evidence/red-green.md` alongside the final run logs.

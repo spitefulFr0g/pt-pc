@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QLockFile>
 #include <QProcess>
+#include <cerrno>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -43,7 +44,15 @@ SessionState InspectSession(const fs::path& bundle) {
         const std::string name = it->path().filename().string();
         if (name.empty() || name.find_first_not_of("0123456789") != std::string::npos) continue;
         std::ifstream cmd(it->path() / "cmdline", std::ios::binary);
-        std::string bytes((std::istreambuf_iterator<char>(cmd)), {});
+        std::string bytes;
+        try { bytes.assign(std::istreambuf_iterator<char>(cmd), {}); }
+        catch (const std::ios_base::failure&) {
+            // procfs can return ESRCH after open when a process exits. It is
+            // no longer a candidate; other read failures must block mutation.
+            if (errno == ESRCH || errno == ENOENT) continue;
+            result.activity = Activity::Uncertain;
+            result.error = "Cannot read Linux process identity."; return result;
+        }
         const auto exe = fs::read_symlink(it->path() / "exe", ec);
         const bool exeKnown = !ec;
         const std::string exeName = exeKnown ? exe.filename().string() : "";
@@ -64,7 +73,10 @@ SessionState InspectSession(const fs::path& bundle) {
             if (end == std::string::npos) break;
             pos = end + 1;
         }
-        if (bytes.empty() && ec) {
+        // A readable command line does not establish executable identity. Linux
+        // keeps cmdline readable for some non-dumpable processes while denying
+        // exe/cwd inspection; a game-named process must still fail closed.
+        if (ec && (bytes.empty() || ec == std::errc::permission_denied)) {
             std::ifstream comm(it->path() / "comm"); std::string processName; std::getline(comm, processName);
             if (processName == target.filename().string()) {
                 result.activity = Activity::Uncertain; result.error = "A game process cannot be inspected."; return result;
@@ -127,7 +139,7 @@ static bool guarded(const fs::path& bundle, const std::function<void()>& action,
     action(); return true;
 }
 bool WithStoppedBundle(const fs::path& bundle, const std::function<void()>& mutation, QString* error) { return guarded(bundle, mutation, error); }
-SessionState PlayFlat(const fs::path& bundle, const std::vector<SupportedRuntime>& supported) {
+static SessionState play(const fs::path& bundle, const std::vector<SupportedRuntime>& supported, LaunchMode mode, bool tryAnyway) {
     const fs::path root = bundleAbsolute(bundle);
     auto current = InspectSession(root);
     if (current.activity != Activity::Stopped) return current;
@@ -154,7 +166,16 @@ SessionState PlayFlat(const fs::path& bundle, const std::vector<SupportedRuntime
 #else
         const auto& runtime = inspected.linux_runtime;
 #endif
-        if (!inspected.archives || !runtime.verified) { failure = "Game archives or matching runtime are unavailable."; return; }
+        if (!inspected.archives || !runtime.present) { failure = "Game archives or runtime are unavailable."; return; }
+        if (!runtime.verified && !tryAnyway) { failure = "The runtime build is unverified. Choose the explicit Try anyway action to proceed."; return; }
+        if (mode == LaunchMode::VR) {
+            const auto readiness = CheckReadiness(inspected, LaunchMode::VR);
+            if (readiness.state == ReadinessState::Blocked ||
+                (readiness.state == ReadinessState::Unknown && !tryAnyway)) {
+                failure = readiness.explanation;
+                return;
+            }
+        }
         const auto executable = program(root);
         const QString log = logPath(root);
         std::error_code directoryError;
@@ -164,7 +185,8 @@ SessionState PlayFlat(const fs::path& bundle, const std::vector<SupportedRuntime
         if (!fresh.open(QIODevice::WriteOnly | QIODevice::Truncate)) { failure = "Cannot create a fresh game log: " + fresh.errorString(); return; }
         fresh.close();
         QStringList arguments{"--game", qpath(root / "CUSA01127"), "--save-dir", qpath(root / "saves"), "--mods", qpath(root / "mods"),
-            "--settings", qpath(executable.parent_path() / "data" / "pt.ini"), "--log", log, "--no-vr", "--no-update-check"};
+            "--settings", qpath(executable.parent_path() / "data" / "pt.ini"), "--log", log,
+            mode == LaunchMode::VR ? "--vr" : "--no-vr", "--no-update-check"};
         qint64 pid = 0;
         if (!QProcess::startDetached(qpath(executable), arguments, qpath(executable.parent_path()), &pid)) failure = "Could not start the game process. Open the game log and retry.";
     }, &failure);
@@ -173,6 +195,12 @@ SessionState PlayFlat(const fs::path& bundle, const std::vector<SupportedRuntime
         failure = "Game process exited immediately. Open the game log and retry.";
     if (!started || !failure.isEmpty()) result.error = failure;
     return result;
+}
+SessionState PlayFlat(const fs::path& bundle, const std::vector<SupportedRuntime>& supported, bool tryAnyway) {
+    return play(bundle, supported, LaunchMode::Flat, tryAnyway);
+}
+SessionState PlayVR(const fs::path& bundle, const std::vector<SupportedRuntime>& supported, bool tryAnyway) {
+    return play(bundle, supported, LaunchMode::VR, tryAnyway);
 }
 bool ReturnToGame(const SessionState& session, QString* error) {
 #ifdef __linux__

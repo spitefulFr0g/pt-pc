@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <signal.h>
 
 namespace fs = std::filesystem;
@@ -38,7 +39,7 @@ int main(int argc, char** argv) {
     write(root / "saves" / "save.dat", "keep"); write(root / "mods" / "mod.dat", "keep");
     QFile binary(QString::fromStdU32String((root / "linux" / "pt").u32string())); assert(binary.open(QIODevice::ReadOnly));
     QCryptographicHash hash(QCryptographicHash::Sha256); assert(hash.addData(&binary));
-    std::vector<pt::launcher::SupportedRuntime> supported{{"linux", hash.result().toHex().toStdString(), "fixture"}};
+    std::vector<pt::launcher::SupportedRuntime> supported{{"linux", hash.result().toHex().toStdString(), "fixture", true}};
     auto stopped = pt::launcher::InspectSession(root); assert(stopped.activity == pt::launcher::Activity::Stopped);
     assert(argc == 2);
     QProcess ui;
@@ -72,6 +73,59 @@ int main(int argc, char** argv) {
     kill(started.pid, SIGTERM);
     for (int i = 0; i < 100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
     assert(pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Stopped);
+    qputenv("XR_RUNTIME_JSON", QString::fromStdU32String((root / "missing-active-runtime.json").u32string()).toLocal8Bit());
+    auto vrUnknown = pt::launcher::CheckReadiness(pt::launcher::InspectBundle(root, supported), pt::launcher::LaunchMode::VR, 80);
+    assert(vrUnknown.state == pt::launcher::ReadinessState::Unknown);
+    auto flatStillReady = pt::launcher::CheckReadiness(pt::launcher::InspectBundle(root, supported), pt::launcher::LaunchMode::Flat);
+    assert(flatStillReady.state == pt::launcher::ReadinessState::Ready);
+    auto refusedVr = pt::launcher::PlayVR(root, supported, false);
+    assert(refusedVr.activity == pt::launcher::Activity::Stopped && !refusedVr.error.isEmpty());
+    fs::remove(root / "linux" / "arguments.txt");
+    auto vrAttempt = pt::launcher::PlayVR(root, supported, true);
+    assert(vrAttempt.activity == pt::launcher::Activity::Running);
+    for (int i=0; i<100 && !fs::exists(root / "linux" / "arguments.txt"); ++i) QThread::msleep(20);
+    std::ifstream vrArguments(root / "linux" / "arguments.txt"); std::string vrArgs((std::istreambuf_iterator<char>(vrArguments)), {});
+    assert(vrArgs.find("--vr\n") != std::string::npos && vrArgs.find("--no-vr\n") == std::string::npos);
+    assert(vrArgs.find("--no-update-check\n") != std::string::npos);
+    assert(vrArgs.find((root / "CUSA01127").string()) != std::string::npos);
+    assert(vrArgs.find((root / "saves").string()) != std::string::npos);
+    assert(vrArgs.find((root / "mods").string()) != std::string::npos);
+    assert(vrArgs.find((root / "linux" / "data" / "pt.ini").string()) != std::string::npos);
+    assert(vrArgs.find((root / "linux" / "data" / "pt.log").string()) != std::string::npos);
+    std::ifstream stillSameSettings(root / "linux" / "data" / "pt.ini");
+    std::string stillSame((std::istreambuf_iterator<char>(stillSameSettings)), {});
+    assert(stillSame == "[display]\nvr=true\n");
+    kill(vrAttempt.pid, SIGTERM);
+    for (int i=0; i<100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
+    fs::remove(root / "linux" / "arguments.txt");
+    QProcess vrUi;
+    vrUi.start(QString::fromLocal8Bit(argv[1]), {"--test-vr-control", QString::fromStdU32String(root.u32string()), "--test-supported-sha256", QString::fromStdString(supported[0].sha256)});
+    const bool vrUiFinished = vrUi.waitForFinished(10000);
+    if (!vrUiFinished) { vrUi.kill(); vrUi.waitForFinished(); std::cerr << vrUi.readAllStandardOutput().constData() << vrUi.readAllStandardError().constData(); }
+    assert(vrUiFinished && vrUi.exitCode() == 0);
+    std::ifstream uiVrArguments(root / "linux" / "arguments.txt");
+    std::string uiVrArgs((std::istreambuf_iterator<char>(uiVrArguments)), {});
+    assert(uiVrArgs.find("--vr\n") != std::string::npos && uiVrArgs.find("--no-update-check\n") != std::string::npos);
+    auto uiVrSession = pt::launcher::InspectSession(root); assert(uiVrSession.activity == pt::launcher::Activity::Running);
+    kill(uiVrSession.pid, SIGTERM);
+    for (int i=0; i<100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
+    fs::remove(root / "linux" / "arguments.txt");
+    QProcess flatUnknownUi;
+    flatUnknownUi.start(QString::fromLocal8Bit(argv[1]), {"--test-flat-unknown-control", QString::fromStdU32String(root.u32string()), "--test-supported-sha256", QString::fromStdString(supported[0].sha256)});
+    assert(flatUnknownUi.waitForFinished(10000) && flatUnknownUi.exitCode() == 0);
+    std::ifstream unknownFlatArguments(root / "linux" / "arguments.txt");
+    std::string unknownFlatArgs((std::istreambuf_iterator<char>(unknownFlatArguments)), {});
+    assert(unknownFlatArgs.find("--no-vr\n") != std::string::npos && unknownFlatArgs.find("--vr\n") == std::string::npos);
+    assert(unknownFlatArgs.find("--no-update-check\n") != std::string::npos);
+    auto unknownFlatSession = pt::launcher::InspectSession(root); assert(unknownFlatSession.activity == pt::launcher::Activity::Running);
+    kill(unknownFlatSession.pid, SIGTERM);
+    for (int i=0; i<100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
+    auto blockerInspection = pt::launcher::InspectBundle(root, supported);
+    blockerInspection.linux_runtime.verified = false;
+    assert(pt::launcher::CheckReadiness(blockerInspection, pt::launcher::LaunchMode::VR).state == pt::launcher::ReadinessState::Unknown);
+    blockerInspection.linux_runtime.verified = true;
+    blockerInspection.linux_runtime.supports_vr = false;
+    assert(pt::launcher::CheckReadiness(blockerInspection, pt::launcher::LaunchMode::VR).state == pt::launcher::ReadinessState::Blocked);
     const auto lockMarker = root / "lock-held";
     QProcess holder;
     holder.start(QCoreApplication::applicationFilePath(), {"--hold-lock", QString::fromStdU32String(root.u32string()), QString::fromStdU32String(lockMarker.u32string())});

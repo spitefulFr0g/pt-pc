@@ -1,0 +1,28 @@
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 1: launcher_inspection
+1/6 Test #1: launcher_inspection ..............   Passed    0.24 sec
+    Start 2: launcher_session
+2/6 Test #2: launcher_session .................   Passed    1.57 sec
+    Start 3: launcher_window
+3/6 Test #3: launcher_window ..................   Passed    0.47 sec
+    Start 4: launcher_preparation
+4/6 Test #4: launcher_preparation .............   Passed    0.32 sec
+    Start 5: launcher_preparation_ui
+5/6 Test #5: launcher_preparation_ui ..........   Passed    1.76 sec
+    Start 6: launcher_preparation_process
+6/6 Test #6: launcher_preparation_process .....Subprocess aborted***Exception:   0.30 sec
+Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+If this causes problems, reconfigure your locale. See the locale(1) manual
+for more information.
+pt_launcher_preparation_process_test: /repo/launcher/tests/preparation_process_test.cpp:80: int main(int, char**): Assertion `state.activity == Activity::Uncertain' failed.
+
+
+83% tests passed, 1 tests failed out of 6
+
+Total Test time (real) =   4.67 sec
+
+The following tests FAILED:
+	  6 - launcher_preparation_process (Subprocess aborted)
+Errors while running CTest
