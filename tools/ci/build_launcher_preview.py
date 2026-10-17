@@ -75,7 +75,7 @@ def main():
             configure += ["-DCMAKE_C_COMPILER=clang-cl", "-DCMAKE_CXX_COMPILER=clang-cl",
                           "-DPT_REQUIRE_UPSCALERS=ON"]
         else:
-            configure += ["-DCMAKE_C_COMPILER=gcc-13", "-DCMAKE_CXX_COMPILER=g++-13"]
+            configure += ["-DCMAKE_C_COMPILER=clang-18", "-DCMAKE_CXX_COMPILER=clang++-18"]
         run(*configure)
         # pt's post-build operations stage the fonts, shaders and runtime libraries.
         run("cmake", "--build", runtime, "--parallel", args.jobs, "--target", "pt", "pt_release")
