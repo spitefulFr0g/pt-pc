@@ -5,7 +5,7 @@
 The manual preview workflow builds the normal game and `pt_release` runtime first,
 then builds the launcher with the SHA-256 of that exact `pt_release` executable in
 `PT_SUPPORTED_LINUX_SHA256` or `PT_SUPPORTED_WINDOWS_SHA256`. The launcher build
-uses shared Qt 6.12.0. The full Linux preview build requires CMake 3.31.8,
+uses shared Qt 6.12.0. The full Linux preview build requires CMake 3.31.10,
 GCC/G++ 13, and `libvulkan-dev` in the Ubuntu 24.04 build environment; the
 standalone launcher still configures with CMake 3.28. Package one platform at
 a time:
