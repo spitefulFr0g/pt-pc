@@ -1,0 +1,31 @@
+debconf: delaying package configuration, since apt-utils is not installed
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR)
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /evidence/build
+[ 25%] Built target pt_launcher_game_window_fixture
+[ 25%] Built target pt_launcher_inspection
+[ 50%] Built target pt_launcher_session
+[ 50%] Built target pt_launcher_inspection_test
+[ 62%] Building CXX object CMakeFiles/pt_launcher_session_test.dir/tests/session_test.cpp.o
+[ 62%] Building CXX object CMakeFiles/pt_launcher.dir/main.cpp.o
+[ 68%] Linking CXX executable pt_launcher_session_test
+[ 75%] Linking CXX executable pt_launcher
+[ 75%] Built target pt_launcher_session_test
+[ 81%] Building CXX object CMakeFiles/pt_launcher_ui_test_app.dir/main.cpp.o
+[ 81%] Built target pt_launcher
+[ 93%] Built target pt_launcher_window_test
+[100%] Linking CXX executable pt_launcher_ui_test_app
+[100%] Built target pt_launcher_ui_test_app
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 1: launcher_inspection
+1/3 Test #1: launcher_inspection ..............   Passed    0.22 sec
+    Start 2: launcher_session
+2/3 Test #2: launcher_session .................   Passed    1.55 sec
+    Start 3: launcher_window
+3/3 Test #3: launcher_window ..................   Passed    0.46 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   2.24 sec

@@ -1,0 +1,9 @@
+Date: 2026-10-17
+Host: Debian GNU/Linux 13 under WSLg; not counted as native Linux compositor validation
+Container: Ubuntu 24.04 image ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+Compiler: GCC 13.3.0 (Ubuntu package g++-13 13.3.0-6ubuntu2~24.04.1)
+CMake: 3.28.3
+Qt: shared Qt 6.12.0 linux_gcc_64, installed with aqtinstall 3.3.0
+Backends: Qt offscreen for inspection/session; xcb on Xvfb 21.1.12 with Openbox 3.6.1 for window test
+Runtime: synthetic shell and Qt window fixtures; no game archive or gameplay execution
+Result: 3/3 CTest checks passed; see ctest.log
