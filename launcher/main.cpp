@@ -144,9 +144,14 @@ int main(int argc, char** argv) {
     auto* updates = new QPushButton("Updates"); updates->setEnabled(false); controls->addWidget(updates);
     auto* details = new QLabel; details->setWordWrap(true); controls->addWidget(details);
     bool preparing = false, closeAfterPreparation = false, preparationLog = false, recoveryBlocked = false;
+    auto* tryFlat = new QPushButton("Try Play anyway"); tryFlat->setObjectName("tryPlayAnyway"); tryFlat->hide(); controls->insertWidget(controls->indexOf(play) + 1, tryFlat);
     bool readinessPending = false, launchPending = false;
     pt::launcher::ModeReadiness flatReadiness, vrModeReadiness;
     QThread* readinessThread = nullptr;
+    bool closing = false;
+    app.setQuitOnLastWindowClosed(false);
+    auto finishClose = [&] { if (closing && !readinessPending && !launchPending && !preparing) app.quit(); };
+    QObject::connect(&app, &QApplication::lastWindowClosed, &window, [&] { closing = true; finishClose(); });
     auto cancelRequested = std::make_shared<std::atomic<bool>>(false);
     QThread* preparationThread = nullptr;
     QPointer<QMessageBox> cancelPrompt;
@@ -161,7 +166,7 @@ int main(int argc, char** argv) {
         return mode + ": " + label + " — " + state.explanation;
     };
     refresh = [&] {
-        if (chosen.empty() || preparing) return;
+        if (closing || chosen.empty() || preparing) return;
         auto session = pt::launcher::InspectSession(chosen);
         if (previousRunning && session.activity == pt::launcher::Activity::Stopped) {
             lastFailure = "Game process exited. Open the game log or retry Play.";
@@ -172,23 +177,26 @@ int main(int argc, char** argv) {
         if (recoveryBlocked && !pendingPreparation) { cachedInspection.reset(); retry->hide(); }
         recoveryBlocked = pendingPreparation;
         if (!cachedInspection) {
-            play->setEnabled(false); vr->setEnabled(false);
+            play->setEnabled(false); tryFlat->setEnabled(false); vr->setEnabled(false);
             vrReadiness->setText("Checking VR prerequisites…");
             if (!readinessPending) {
                 readinessPending = true;
                 const auto bundle = chosen;
-                readinessThread = QThread::create([&, bundle] {
-                    auto inspection = pt::launcher::InspectBundle(bundle, supported);
-                    auto flatState = pt::launcher::CheckReadiness(inspection, pt::launcher::LaunchMode::Flat);
-                    auto vrState = pt::launcher::CheckReadiness(inspection, pt::launcher::LaunchMode::VR);
-                    QMetaObject::invokeMethod(&window, [&, bundle, inspection = std::move(inspection), flatState, vrState] () mutable {
-                        readinessPending = false; readinessThread = nullptr;
-                        if (chosen == bundle) {
-                            cachedInspection = std::move(inspection);
-                            flatReadiness = flatState; vrModeReadiness = vrState;
-                        }
+                struct ProbeResult { pt::launcher::BundleInspection inspection; pt::launcher::ModeReadiness flat, vr; };
+                auto result = std::make_shared<ProbeResult>();
+                readinessThread = QThread::create([bundle, supported, result] {
+                    result->inspection = pt::launcher::InspectBundle(bundle, supported);
+                    result->flat = pt::launcher::CheckReadiness(result->inspection, pt::launcher::LaunchMode::Flat);
+                    result->vr = pt::launcher::CheckReadiness(result->inspection, pt::launcher::LaunchMode::VR);
+                });
+                QObject::connect(readinessThread, &QThread::finished, &window, [&, bundle, result] {
+                    readinessPending = false; readinessThread = nullptr;
+                    if (!closing && chosen == bundle) {
+                        cachedInspection = std::move(result->inspection);
+                        flatReadiness = result->flat; vrModeReadiness = result->vr;
                         refresh();
-                    }, Qt::QueuedConnection);
+                    }
+                    finishClose();
                 });
                 QObject::connect(readinessThread, &QThread::finished, readinessThread, &QObject::deleteLater);
                 readinessThread->start();
@@ -203,18 +211,20 @@ int main(int argc, char** argv) {
 #else
             inspection.linux_runtime.verified;
 #endif
-        play->setText(flatReadiness.state == pt::launcher::ReadinessState::Unknown ? "Try Play anyway" : "Play");
-        play->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && flatReadiness.state != pt::launcher::ReadinessState::Blocked);
+        play->setText("Play");
+        play->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && flatReadiness.state == pt::launcher::ReadinessState::Ready);
+        tryFlat->setVisible(flatReadiness.state == pt::launcher::ReadinessState::Unknown);
+        tryFlat->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped);
         vr->setText(vrModeReadiness.state == pt::launcher::ReadinessState::Unknown ? "Try VR anyway" : "Play in VR");
         vr->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && vrModeReadiness.state != pt::launcher::ReadinessState::Blocked);
-        flatReadinessLabel->setText(readinessText("Flat", flatReadiness));
-        vrReadiness->setText(readinessText("VR", vrModeReadiness));
+        flatReadinessLabel->setText(flatReadiness.state == pt::launcher::ReadinessState::Ready ? QString() : readinessText("Flat", flatReadiness));
+        vrReadiness->setText(vrModeReadiness.state == pt::launcher::ReadinessState::Ready ? QString() : readinessText("VR", vrModeReadiness));
         retryVr->setVisible(vrModeReadiness.state != pt::launcher::ReadinessState::Ready);
         retryVr->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped);
         settings->setEnabled(runtime && !preparing && !recoveryBlocked);
         settings->setToolTip(runtime ? "" : "Align with a matching supported runtime to edit settings.");
         resume->setVisible(session.activity == pt::launcher::Activity::Running);
-        if (session.activity == pt::launcher::Activity::Running) warning->setText("Game process active. Return to the existing session.");
+        if (session.activity == pt::launcher::Activity::Running) warning->clear();
         else if (session.activity == pt::launcher::Activity::Uncertain) warning->setText(session.error.isEmpty() ? "Game activity uncertain. Play is blocked." : session.error);
         else if (recoveryBlocked) warning->setText("Game preparation is active or interrupted. Choose Recover preparation after it has stopped.");
         else if (!lastFailure.isEmpty()) warning->setText(lastFailure);
@@ -258,7 +268,7 @@ int main(int argc, char** argv) {
         settings->setEnabled(false);
         preparing = true; cancelRequested->store(false); preparationLog = true;
         logButton->setText("Open preparation log");
-        play->setEnabled(false); vr->setEnabled(false); retryVr->setEnabled(false); resume->hide(); retry->hide(); logButton->hide();
+        play->setEnabled(false); tryFlat->setEnabled(false); vr->setEnabled(false); retryVr->setEnabled(false); resume->hide(); retry->hide(); logButton->hide();
         files->setEnabled(false); folderFiles->setEnabled(false); openBundle->setEnabled(false);
         preparationBar->setRange(0, 0); preparationBar->show();
         cancelPreparation->setEnabled(!recoverOnly); cancelPreparation->show();
@@ -333,27 +343,32 @@ int main(int argc, char** argv) {
         preferences.setValue("lastBundleOwner", bundleOwner);
     });
     QObject::connect(cancelPreparation, &QPushButton::clicked, &window, [&] { confirmCancellation(false); });
-    QObject::connect(play, &QPushButton::clicked, &window, [&] {
+    auto launchFlat = [&](bool tryAnyway) {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
-        auto result = pt::launcher::PlayFlat(chosen, supported, flatReadiness.state == pt::launcher::ReadinessState::Unknown);
+        auto result = pt::launcher::PlayFlat(chosen, supported, tryAnyway);
         refresh();
         if (!result.error.isEmpty()) { lastFailure = result.error; warning->setText(result.error); retry->show(); logButton->show(); }
-    });
+    };
+    QObject::connect(play, &QPushButton::clicked, &window, [&] { launchFlat(false); });
+    QObject::connect(tryFlat, &QPushButton::clicked, &window, [&] { launchFlat(true); });
     QObject::connect(vr, &QPushButton::clicked, &window, [&] {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
         const bool tryAnyway = vrModeReadiness.state == pt::launcher::ReadinessState::Unknown;
-        launchPending = true; play->setEnabled(false); vr->setEnabled(false); vrReadiness->setText("Starting the VR attempt…");
+        launchPending = true; play->setEnabled(false); tryFlat->setEnabled(false); vr->setEnabled(false); vrReadiness->setText("Starting the VR attempt…");
         const auto bundle = chosen;
         auto result = std::make_shared<pt::launcher::SessionState>();
-        auto* launchThread = QThread::create([&, bundle, tryAnyway, result] {
+        auto* launchThread = QThread::create([bundle, supported, tryAnyway, result] {
             *result = pt::launcher::PlayVR(bundle, supported, tryAnyway);
-            QMetaObject::invokeMethod(&window, [&, result] {
-                launchPending = false;
+        });
+        QObject::connect(launchThread, &QThread::finished, &window, [&, result] {
+            launchPending = false;
+            if (!closing) {
                 if (!result->error.isEmpty()) {
                     lastFailure = result->error; warning->setText(result->error); retry->show(); logButton->show();
                 }
                 refresh();
-            }, Qt::QueuedConnection);
+            }
+            finishClose();
         });
         QObject::connect(launchThread, &QThread::finished, launchThread, &QObject::deleteLater);
         launchThread->start();
@@ -393,16 +408,35 @@ int main(int argc, char** argv) {
         if (!source.startsWith('-')) QTimer::singleShot(0, &window, [&, source] { prepare(source, false); });
     }
 #ifdef PT_LAUNCHER_TEST_BUILD
+    if (testMode == "--test-close-readiness" || testMode == "--test-close-launch") {
+        auto* closeTimer = new QTimer(&window); closeTimer->setInterval(1);
+        auto launchStarted = std::make_shared<bool>(false);
+        QObject::connect(closeTimer, &QTimer::timeout, &window, [&, closeTimer, launchStarted, testMode] {
+            const auto marker = qEnvironmentVariable("PT_TEST_PROBE_MARKER");
+            if (testMode == "--test-close-launch" && !*launchStarted) {
+                if (readinessPending || !cachedInspection) return;
+                QFile::remove(marker);
+                *launchStarted = true;
+                vr->click();
+                return;
+            }
+            if (!QFileInfo::exists(marker)) return;
+            if (testMode == "--test-close-readiness" ? !readinessPending : !launchPending) std::_Exit(87);
+            closeTimer->stop(); window.close();
+        });
+        closeTimer->start();
+    }
     bool vrControlRetried = false;
     if (!chosen.empty()) QTimer::singleShot(300, &window, [&, testMode] {
+        if (testMode == "--test-close-readiness" || testMode == "--test-close-launch") return;
         if (testMode == "--test-flat-unknown-control") {
             auto* readinessWait = new QTimer(&window); readinessWait->setInterval(10);
             QObject::connect(readinessWait, &QTimer::timeout, &window, [&, readinessWait] {
                 if (readinessPending || !cachedInspection) return;
                 readinessWait->stop();
                 if (flatReadiness.state != pt::launcher::ReadinessState::Unknown ||
-                    play->text() != "Try Play anyway" || !play->isEnabled()) std::_Exit(82);
-                play->click();
+                    play->text() != "Play" || play->isEnabled() || !tryFlat->isVisible() || !tryFlat->isEnabled()) std::_Exit(82);
+                tryFlat->click();
                 QTimer::singleShot(250, &window, [] { QApplication::quit(); });
             });
             readinessWait->start(); return;
@@ -443,6 +477,7 @@ int main(int argc, char** argv) {
             if (warning->text().isEmpty()) std::abort();
             QApplication::quit(); return;
         }
+        if (testMode == "--test-play-and-exit" && (play->text() != "Play" || !flatReadinessLabel->text().isEmpty() || !warning->text().isEmpty())) std::_Exit(88);
         play->click(); play->click();
         if (testMode == "--test-start-failure") {
             if (!retry->isVisible() || !logButton->isVisible() || warning->text().isEmpty()) std::abort();
