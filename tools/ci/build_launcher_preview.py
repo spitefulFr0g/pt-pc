@@ -64,6 +64,8 @@ def main():
         if args.platform == "windows":
             configure += ["-DCMAKE_C_COMPILER=clang-cl", "-DCMAKE_CXX_COMPILER=clang-cl",
                           "-DPT_REQUIRE_UPSCALERS=ON"]
+        else:
+            configure += ["-DCMAKE_C_COMPILER=gcc-13", "-DCMAKE_CXX_COMPILER=g++-13"]
         run(*configure)
         # pt's post-build operations stage the fonts, shaders and runtime libraries.
         run("cmake", "--build", runtime, "--parallel", args.jobs, "--target", "pt", "pt_release")
@@ -87,6 +89,8 @@ def main():
             run("cmake", "--install", zlib_build)
             launcher_config += ["-DCMAKE_C_COMPILER=cl", "-DCMAKE_CXX_COMPILER=cl",
                                 "-DZLIB_ROOT=" + str(zlib_install), "-DZLIB_USE_STATIC_LIBS=ON"]
+        else:
+            launcher_config += ["-DCMAKE_CXX_COMPILER=g++-13"]
         run(*launcher_config)
         run("cmake", "--build", launcher, "--parallel", args.jobs)
         # Existing inspection tests exercise the public operation through QApplication.
