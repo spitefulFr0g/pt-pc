@@ -20,6 +20,7 @@ namespace {
 constexpr int deadZone = 8000;
 constexpr int repeatDelayMs = 360;
 constexpr int repeatRateMs = 110;
+constexpr int maxEventsPerPump = 128;
 
 bool usable(QWidget* widget) {
     return widget && widget->isVisible() && widget->isEnabled() && widget->focusPolicy() != Qt::NoFocus;
@@ -168,14 +169,14 @@ void ControllerAdapter::pump() {
     if (!foreground || !ownsSessionCached_) {
         if (!handedOff_) releaseForHandoff();
         SDL_Event ignored{};
-        while (SDL_PollEvent(&ignored)) {}
+        for (int count = 0; count < maxEventsPerPump && SDL_PollEvent(&ignored); ++count) {}
         return;
     }
     if (handedOff_) reopenAfterHandoff();
     if (!gamepad_) reopenAfterHandoff();
     if (!gamepad_) { SDL_PumpEvents(); return; }
     SDL_Event event{};
-    while (SDL_PollEvent(&event)) {
+    for (int count = 0; count < maxEventsPerPump && SDL_PollEvent(&event); ++count) {
         if (event.type == SDL_EVENT_GAMEPAD_REMOVED && event.gdevice.which == instance_) {
             releaseForHandoff();
             break;
