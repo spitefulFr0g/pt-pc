@@ -1,0 +1,24 @@
+Internal ctest changing into directory: /evidence/build.G8qAYU
+Test project /evidence/build.G8qAYU
+    Start 1: launcher_inspection
+1/9 Test #1: launcher_inspection ..............   Passed    0.23 sec
+    Start 2: launcher_readiness
+2/9 Test #2: launcher_readiness ...............   Passed    0.26 sec
+    Start 3: launcher_settings
+3/9 Test #3: launcher_settings ................   Passed    0.39 sec
+    Start 4: launcher_settings_dialog
+4/9 Test #4: launcher_settings_dialog .........   Passed    1.15 sec
+    Start 5: launcher_session
+5/9 Test #5: launcher_session .................   Passed    4.80 sec
+    Start 6: launcher_window
+6/9 Test #6: launcher_window ..................   Passed    0.47 sec
+    Start 7: launcher_preparation
+7/9 Test #7: launcher_preparation .............   Passed    0.31 sec
+    Start 8: launcher_preparation_ui
+8/9 Test #8: launcher_preparation_ui ..........   Passed    2.04 sec
+    Start 9: launcher_preparation_process
+9/9 Test #9: launcher_preparation_process .....   Passed    0.42 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Total Test time (real) =  10.09 sec
