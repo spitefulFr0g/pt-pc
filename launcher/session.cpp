@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QLockFile>
 #include <QProcess>
+#include <cerrno>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -43,7 +44,15 @@ SessionState InspectSession(const fs::path& bundle) {
         const std::string name = it->path().filename().string();
         if (name.empty() || name.find_first_not_of("0123456789") != std::string::npos) continue;
         std::ifstream cmd(it->path() / "cmdline", std::ios::binary);
-        std::string bytes((std::istreambuf_iterator<char>(cmd)), {});
+        std::string bytes;
+        try { bytes.assign(std::istreambuf_iterator<char>(cmd), {}); }
+        catch (const std::ios_base::failure&) {
+            // procfs can return ESRCH after open when a process exits. It is
+            // no longer a candidate; other read failures must block mutation.
+            if (errno == ESRCH || errno == ENOENT) continue;
+            result.activity = Activity::Uncertain;
+            result.error = "Cannot read Linux process identity."; return result;
+        }
         const auto exe = fs::read_symlink(it->path() / "exe", ec);
         const bool exeKnown = !ec;
         const std::string exeName = exeKnown ? exe.filename().string() : "";
@@ -64,7 +73,10 @@ SessionState InspectSession(const fs::path& bundle) {
             if (end == std::string::npos) break;
             pos = end + 1;
         }
-        if (bytes.empty() && ec) {
+        // A readable command line does not establish executable identity. Linux
+        // keeps cmdline readable for some non-dumpable processes while denying
+        // exe/cwd inspection; a game-named process must still fail closed.
+        if (ec && (bytes.empty() || ec == std::errc::permission_denied)) {
             std::ifstream comm(it->path() / "comm"); std::string processName; std::getline(comm, processName);
             if (processName == target.filename().string()) {
                 result.activity = Activity::Uncertain; result.error = "A game process cannot be inspected."; return result;
