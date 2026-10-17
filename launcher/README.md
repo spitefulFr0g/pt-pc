@@ -287,3 +287,7 @@ space preflight, and source/player/unowned file preservation. The process
 failure/hang controls are disposable copies of the test executable. The actual
 helper runs use synthetic packages only; none are playable game data. Evidence
 does not claim SteamOS, native Windows launcher GUI, or physical-device tests.
+The final merged run's environment, helper hashes, per-platform results, full
+CTest output and space-check output are committed under
+`launcher/evidence/issue6/`; see `reproduction.md` for the exact environment and
+coverage boundaries.

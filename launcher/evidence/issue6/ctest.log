@@ -1,0 +1,131 @@
+Internal ctest changing into directory: /evidence/build
+UpdateCTestConfiguration  from :/evidence/build/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/evidence/build/DartConfiguration.tcl
+Test project /evidence/build
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: launcher_inspection
+
+1: Test command: /evidence/build/pt_launcher_inspection_test
+1: Working Directory: /evidence/build
+1: Test timeout computed to be: 10000000
+1: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+1: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+1: If this causes problems, reconfigure your locale. See the locale(1) manual
+1: for more information.
+1/9 Test #1: launcher_inspection ..............   Passed    0.24 sec
+test 2
+    Start 2: launcher_readiness
+
+2: Test command: /evidence/build/pt_launcher_readiness_test
+2: Working Directory: /evidence/build
+2: Test timeout computed to be: 10
+2: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+2: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+2: If this causes problems, reconfigure your locale. See the locale(1) manual
+2: for more information.
+2/9 Test #2: launcher_readiness ...............   Passed    0.26 sec
+test 3
+    Start 3: launcher_settings
+
+3: Test command: /evidence/build/pt_launcher_settings_test
+3: Working Directory: /evidence/build
+3: Test timeout computed to be: 10000000
+3: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+3: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+3: If this causes problems, reconfigure your locale. See the locale(1) manual
+3: for more information.
+3/9 Test #3: launcher_settings ................   Passed    0.11 sec
+test 4
+    Start 4: launcher_settings_dialog
+
+4: Test command: /evidence/build/pt_launcher_settings_dialog_test
+4: Working Directory: /evidence/build
+4: Test timeout computed to be: 10000000
+4: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+4: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+4: If this causes problems, reconfigure your locale. See the locale(1) manual
+4: for more information.
+4: This plugin does not support propagateSizeHints()
+4: This plugin does not support propagateSizeHints()
+4: This plugin does not support propagateSizeHints()
+4: This plugin does not support propagateSizeHints()
+4: This plugin does not support propagateSizeHints()
+4/9 Test #4: launcher_settings_dialog .........   Passed    1.11 sec
+test 5
+    Start 5: launcher_session
+
+5: Test command: /evidence/build/pt_launcher_session_test "/evidence/build/pt_launcher_ui_test_app"
+5: Working Directory: /evidence/build
+5: Test timeout computed to be: 30
+5: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+5: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+5: If this causes problems, reconfigure your locale. See the locale(1) manual
+5: for more information.
+5/9 Test #5: launcher_session .................   Passed    4.80 sec
+test 6
+    Start 6: launcher_window
+
+6: Test command: /repo/launcher/run-window-test.sh "/evidence/build/pt_launcher_window_test" "/evidence/build/pt_launcher_game_window_fixture"
+6: Working Directory: /evidence/build
+6: Test timeout computed to be: 10000000
+6: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+6: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+6: If this causes problems, reconfigure your locale. See the locale(1) manual
+6: for more information.
+6: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+6: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+6: If this causes problems, reconfigure your locale. See the locale(1) manual
+6: for more information.
+6/9 Test #6: launcher_window ..................   Passed    0.47 sec
+test 7
+    Start 7: launcher_preparation
+
+7: Test command: /evidence/build/pt_launcher_preparation_test
+7: Working Directory: /evidence/build
+7: Test timeout computed to be: 10000000
+7: preparation public-operation cases passed
+7/9 Test #7: launcher_preparation .............   Passed    0.95 sec
+test 8
+    Start 8: launcher_preparation_ui
+
+8: Test command: /repo/launcher/tests/preparation_ui_test.sh "/evidence/build/pt_launcher_ui_test_app"
+8: Working Directory: /evidence/build
+8: Test timeout computed to be: 10000000
+8: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+8: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+8: If this causes problems, reconfigure your locale. See the locale(1) manual
+8: for more information.
+8/9 Test #8: launcher_preparation_ui ..........   Passed    2.04 sec
+test 9
+    Start 9: launcher_preparation_process
+
+9: Test command: /evidence/build/pt_launcher_preparation_process_test "/evidence/build/libpt_preparation_fault_adapter.so"
+9: Working Directory: /evidence/build
+9: Test timeout computed to be: 40
+9: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+9: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+9: If this causes problems, reconfigure your locale. See the locale(1) manual
+9: for more information.
+9: PASS controlled extractor failure preserves source and bundle
+9: PASS controlled extractor hang preserves source and bundle
+9: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+9: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+9: If this causes problems, reconfigure your locale. See the locale(1) manual
+9: for more information.
+9: PASS process vanishes during cmdline read
+9: PASS SIGKILL/recovery/retry and concurrent Play/write/prepare: copy
+9: PASS SIGKILL/recovery/retry and concurrent Play/write/prepare: /new/CUSA01127/chunk1.psarc
+9: PASS SIGKILL/recovery/retry and concurrent Play/write/prepare: /linux/data/pt.ini
+9: PASS SIGKILL/recovery/retry and concurrent Play/write/prepare: /new/linux/data/pt.ini
+9: PASS genuinely uninspectable process fails closed
+9/9 Test #9: launcher_preparation_process .....   Passed    0.85 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Total Test time (real) =  10.83 sec
