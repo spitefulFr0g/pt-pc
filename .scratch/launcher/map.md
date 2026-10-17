@@ -16,6 +16,7 @@ The map is complete when implementation can proceed without unresolved product, 
 - Consult `wayfinder`, `grilling`, and `domain-modeling` for decision sessions; use `research` for external investigations and `prototype` for the UI discussion.
 - Terminology: [Project glossary](../../GLOSSARY.md). Repository evidence: [Launcher starting points](context.md).
 - Tracker: local Markdown in this directory, with one child decision file per ticket. Use the conventions below; `/setup-matt-pocock-skills` can configure a different tracker if desired.
+- Current canonical specification and active tracker: [Personal P.T. launcher for Windows and native Linux — GitHub issue #1](https://github.com/spitefulFr0g/pt-pc/issues/1). Its existing specification has been reconciled with this completed map. The local map/decision files are resolved evidence only. Future `$to-spec` updates that issue in place; do not create a second spec issue or local spec. `$to-tickets` uses that canonical issue when requested.
 - Children are individual files in `issues/`. Scan open, unassigned children whose `Blocked by` tickets are all resolved, ordered by filename, to find the frontier. Claim by setting `Status: claimed` and `Assignee:` before working. Append resolutions under `## Answer`, then set `Status: resolved` and index the answer below. Use only `wayfinder:` labels.
 - Billing is subscription-only. API-priced models/providers require explicit authorization for that work. Verify the route before delegation and preserve this restriction in every handoff. If capacity or verification fails, wait or report the blocker; do not fall back to API billing.
 - Charting responses about packaging, updates, and current VR use are captured in their child tickets. Those inputs do not settle the remaining questions in each ticket.
@@ -37,7 +38,7 @@ The map is complete when implementation can proceed without unresolved product, 
 
 ## Not yet specified
 
-- None. All decision tickets are resolved. Synthesize their linked answers and prototype evidence with `/to-spec`, then split the specification into implementation tickets with `/to-tickets`. No production implementation or native package/runtime validation has been completed by this map.
+- None. All decision tickets are resolved and their specification is already synthesized in [the canonical GitHub issue](https://github.com/spitefulFr0g/pt-pc/issues/1). Repeated `/to-spec` invocations update that issue in place; the next build-planning step is `/to-tickets` from that issue when requested. No production implementation or native package/runtime validation has been completed by this map.
 
 ## Out of scope
 
