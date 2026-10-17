@@ -1,5 +1,6 @@
 #pragma once
 #include "inspection.h"
+#include "readiness.h"
 #include <QString>
 #include <functional>
 
@@ -15,7 +16,10 @@ struct SessionState {
 };
 // Public operations used by the UI and by future bundle mutations.
 SessionState InspectSession(const std::filesystem::path& bundle);
-SessionState PlayFlat(const std::filesystem::path& bundle, const std::vector<SupportedRuntime>& supported);
+SessionState PlayFlat(const std::filesystem::path& bundle, const std::vector<SupportedRuntime>& supported,
+                      bool tryAnyway = false);
+SessionState PlayVR(const std::filesystem::path& bundle, const std::vector<SupportedRuntime>& supported,
+                    bool tryAnyway);
 bool WithStoppedBundle(const std::filesystem::path& bundle, const std::function<void()>& mutation, QString* error);
 bool ReturnToGame(const SessionState& session, QString* error);
 }

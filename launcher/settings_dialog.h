@@ -9,7 +9,7 @@ class QTimer;
 namespace pt::launcher {
 class SettingsDialog final : public QDialog {
 public:
-    SettingsDialog(std::filesystem::path bundle, Platform platform, QWidget* parent = nullptr);
+    SettingsDialog(std::filesystem::path bundle, Platform platform, std::vector<SupportedRuntime> supported, QWidget* parent = nullptr);
     void reject() override;
     bool loaded() const { return base_.available; }
     QString statusText() const;
@@ -19,6 +19,7 @@ private:
     bool confirmDiscard();
     std::filesystem::path bundle_;
     Platform platform_;
+    std::vector<SupportedRuntime> supported_;
     DisplaySettingsSnapshot base_;
     QSpinBox* width_ = nullptr;
     QSpinBox* height_ = nullptr;

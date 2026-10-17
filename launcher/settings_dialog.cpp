@@ -10,8 +10,8 @@
 #include <QVBoxLayout>
 
 namespace pt::launcher {
-SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, QWidget* parent)
-    : QDialog(parent), bundle_(std::move(bundle)), platform_(platform) {
+SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, std::vector<SupportedRuntime> supported, QWidget* parent)
+    : QDialog(parent), bundle_(std::move(bundle)), platform_(platform), supported_(std::move(supported)) {
     setWindowTitle("Display settings");
     setModal(true);
     setObjectName("displaySettingsDialog");
@@ -61,7 +61,7 @@ SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, 
 }
 QString SettingsDialog::statusText() const { return status_->text(); }
 void SettingsDialog::reload() {
-    base_=ReadDisplaySettings(bundle_,platform_);
+    base_=ReadDisplaySettings(bundle_,platform_,supported_);
     width_->setEnabled(base_.available); height_->setEnabled(base_.available); mode_->setEnabled(base_.available);
     if (!base_.available) { message_=base_.error; status_->setText(message_); return; }
     width_->setValue(base_.value.width); height_->setValue(base_.value.height); mode_->setCurrentIndex(base_.value.windowMode);
@@ -73,7 +73,7 @@ void SettingsDialog::apply() {
     if (width_->value()!=base_.value.width) edit.width=width_->value();
     if (height_->value()!=base_.value.height) edit.height=height_->value();
     if (mode_->currentIndex()!=base_.value.windowMode) edit.windowMode=mode_->currentIndex();
-    const auto result=ApplyDisplaySettings(bundle_,platform_,base_,edit);
+    const auto result=ApplyDisplaySettings(bundle_,platform_,supported_,base_,edit);
     message_=result.error;
     if (result.status==ApplyStatus::Applied) {
         base_=result.persisted;
@@ -85,11 +85,15 @@ void SettingsDialog::apply() {
         auto* reloadButton=prompt.addButton("Reload newer settings",QMessageBox::ResetRole);
         prompt.setDefaultButton(reloadButton); prompt.setEscapeButton(reloadButton); prompt.exec();
         if (prompt.clickedButton()==reconcile) {
-            auto newer=ReadDisplaySettings(bundle_,platform_);
-            if (newer.available) { base_=newer; message_="Newer settings loaded as the base. Apply again to reconcile your edited values."; }
+            auto newer=ReadDisplaySettings(bundle_,platform_,supported_);
+            if (newer.available) {
+                if (!edit.width) width_->setValue(newer.value.width);
+                if (!edit.height) height_->setValue(newer.value.height);
+                if (!edit.windowMode) mode_->setCurrentIndex(newer.value.windowMode);
+                base_=newer; message_="Newer settings loaded as the base. Apply again to reconcile your edited values."; }
             else message_=newer.error;
             } else reload();
-    } else if (result.status==ApplyStatus::Blocked) message_="Game activity blocks settings writes. " + result.error;
+    } else if (result.status==ApplyStatus::Blocked) message_=result.error;
     status_->setText(message_);
 }
 bool SettingsDialog::confirmDiscard() {
