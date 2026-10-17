@@ -24,6 +24,7 @@ private:
     QSpinBox* width_ = nullptr;
     QSpinBox* height_ = nullptr;
     QComboBox* mode_ = nullptr;
+    QComboBox* graphics_ = nullptr;
     QLabel* status_ = nullptr;
     QTimer* activityMonitor_ = nullptr;
     bool gameWasRunning_ = false;
