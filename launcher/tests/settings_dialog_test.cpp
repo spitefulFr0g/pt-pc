@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <QThread>
 #include <QProcess>
+#include <QStandardItemModel>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -35,6 +36,39 @@ int main(int argc,char** argv){
     auto* box=dialog.findChild<QDialogButtonBox*>();
     assert(width&&mode&&apply&&discard&&box&&graphics);
     dialog.show();
+    assert(!qobject_cast<QStandardItemModel*>(graphics->model())->item(4)->isEnabled());
+    // Custom A -> Custom B conflicts; reconcile keeps the dirty preset but refreshes clean fields.
+    auto* reloadPreset=dialog.findChild<QPushButton*>("settingsReload");
+    put(ini,"[display]\nwidth=1280\nheight=720\nfullscreen=0\n[graphics]\nclarity=.2\n");
+    reloadPreset->click();
+    assert(graphics->currentIndex()==4);
+    graphics->setCurrentIndex(2);
+    put(ini,"[display]\nwidth=1400\nheight=800\nfullscreen=1\n[graphics]\nclarity=.3\nunknown=keep\n");
+    const auto newerCustom=get(ini);
+    QTimer::singleShot(0,&dialog,[&] {
+        for (auto* w : QApplication::topLevelWidgets()) if (auto* message=qobject_cast<QMessageBox*>(w))
+            for (auto* button : message->buttons()) if (button->text()=="Reconcile my edits") { button->click(); return; }
+        std::abort();
+    });
+    apply->click();
+    assert(dialog.statusText().contains("Apply again"));
+    assert(graphics->currentIndex()==2 && width->value()==1400 && mode->currentIndex()==1);
+    assert(get(ini)==newerCustom);
+    apply->click();
+    assert(graphics->currentIndex()==2);
+    // Explicit activation of the currently displayed preset patches the whole keyset.
+    put(ini,get(ini)+"\n[graphics]\nclarity=.1\n");
+    QMetaObject::invokeMethod(graphics,"activated",Qt::DirectConnection,Q_ARG(int,2));
+    QTimer::singleShot(0,&dialog,[&] {
+        for (auto* w : QApplication::topLevelWidgets()) if (auto* message=qobject_cast<QMessageBox*>(w))
+            for (auto* button : message->buttons()) if (button->text()=="Reconcile my edits") { button->click(); return; }
+        std::abort();
+    });
+    apply->click();
+    apply->click();
+    assert(graphics->currentIndex()==2 && get(ini).find("clarity=0.250000")!=std::string::npos);
+    put(ini,"; retain\n[display]\nwidth = 1280 ; retain inline note\nheight = 720\nfullscreen = 0\nunknown = keep\n");
+    reloadPreset->click();
     width->setValue(1600); apply->click();
     assert(get(ini).find("width = 1600")!=std::string::npos);
     assert(get(ini).find("width = 1600 ; retain inline note")!=std::string::npos);

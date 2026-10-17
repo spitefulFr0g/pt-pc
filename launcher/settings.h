@@ -16,6 +16,8 @@ struct DisplaySettings {
 struct DisplaySettingsSnapshot {
     bool available = false;
     DisplaySettings value;
+    pt::AppSettings::Graphics graphics;
+    pt::AppSettings::RayTracing rayTracing;
     QString error;
 };
 struct DisplaySettingsEdit {

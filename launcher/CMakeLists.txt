@@ -74,7 +74,7 @@ target_include_directories(pt_launcher_settings PUBLIC ${CMAKE_CURRENT_SOURCE_DI
 add_library(pt_launcher_settings_dialog STATIC settings_dialog.cpp)
 target_link_libraries(pt_launcher_settings_dialog PUBLIC pt_launcher_settings Qt6::Widgets)
 target_include_directories(pt_launcher_settings_dialog PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-add_executable(pt_launcher_settings_test settings_test.cpp)
+add_executable(pt_launcher_settings_test settings_test.cpp ../src/engine/platform/settings.cpp)
 target_link_libraries(pt_launcher_settings_test PRIVATE pt_launcher_settings)
 add_test(NAME launcher_settings COMMAND pt_launcher_settings_test)
 add_executable(pt_launcher_settings_dialog_test tests/settings_dialog_test.cpp)

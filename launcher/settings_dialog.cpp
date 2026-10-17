@@ -8,6 +8,7 @@
 #include <QSpinBox>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QStandardItemModel>
 
 namespace pt::launcher {
 SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, std::vector<SupportedRuntime> supported, QWidget* parent)
@@ -23,7 +24,14 @@ SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, 
     mode_->setEnabled(false);
     mode_->addItems({"Windowed","Borderless fullscreen","Exclusive fullscreen"});
     form->addRow("Resolution width",width_); form->addRow("Resolution height",height_); form->addRow("Window mode",mode_);
-    graphics_=new QComboBox(this);graphics_->setObjectName("graphicsPreset");graphics_->setEnabled(false);graphics_->addItems({"Low","Original","High","Ultra","Custom"});form->addRow("Graphics quality",graphics_);
+    graphics_ = new QComboBox(this);
+    graphics_->setObjectName("graphicsPreset");
+    graphics_->setEnabled(false);
+    graphics_->addItems({"Low","Original","High","Ultra","Custom"});
+    auto* presetModel = qobject_cast<QStandardItemModel*>(graphics_->model());
+    presetModel->item(static_cast<int>(pt::GraphicsPreset::Custom))->setEnabled(false);
+    connect(graphics_, &QComboBox::activated, this, [this] { presetChosen_ = true; });
+    form->addRow("Graphics quality",graphics_);
     layout->addLayout(form);
     status_ = new QLabel(this); status_->setObjectName("settingsStatus"); status_->setWordWrap(true); layout->addWidget(status_);
     auto* buttons = new QDialogButtonBox(this);
@@ -44,7 +52,7 @@ SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, 
         if(activity==Activity::Running) gameWasRunning_=true;
         if(gameWasRunning_ && activity==Activity::Stopped) {
             gameWasRunning_=false;
-            const bool edited=width_->value()!=base_.value.width || height_->value()!=base_.value.height ||
+            const bool edited=presetChosen_ || width_->value()!=base_.value.width || height_->value()!=base_.value.height ||
                               mode_->currentIndex()!=base_.value.windowMode || graphics_->currentIndex()!=static_cast<int>(base_.value.graphicsPreset);
             if(!edited) {
                 reload();
@@ -59,6 +67,7 @@ SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, 
 }
 QString SettingsDialog::statusText() const { return status_->text(); }
 void SettingsDialog::reload() {
+    presetChosen_ = false;
     base_=ReadDisplaySettings(bundle_,platform_,supported_);
     width_->setEnabled(base_.available); height_->setEnabled(base_.available); mode_->setEnabled(base_.available);graphics_->setEnabled(base_.available);
     if (!base_.available) { message_=base_.error; status_->setText(message_); return; }
@@ -71,10 +80,11 @@ void SettingsDialog::apply() {
     if (width_->value()!=base_.value.width) edit.width=width_->value();
     if (height_->value()!=base_.value.height) edit.height=height_->value();
     if (mode_->currentIndex()!=base_.value.windowMode) edit.windowMode=mode_->currentIndex();
-    if(graphics_->currentIndex()!=static_cast<int>(base_.value.graphicsPreset))edit.graphicsPreset=static_cast<pt::GraphicsPreset>(graphics_->currentIndex());
+    if(presetChosen_ || graphics_->currentIndex()!=static_cast<int>(base_.value.graphicsPreset))edit.graphicsPreset=static_cast<pt::GraphicsPreset>(graphics_->currentIndex());
     const auto result=ApplyDisplaySettings(bundle_,platform_,supported_,base_,edit);
     message_=result.error;
     if (result.status==ApplyStatus::Applied) {
+        presetChosen_ = false;
         base_=result.persisted;
         width_->setValue(base_.value.width); height_->setValue(base_.value.height); mode_->setCurrentIndex(base_.value.windowMode);graphics_->setCurrentIndex(static_cast<int>(base_.value.graphicsPreset));
         message_="Display settings saved and read back.";
@@ -97,7 +107,7 @@ void SettingsDialog::apply() {
     status_->setText(message_);
 }
 bool SettingsDialog::confirmDiscard() {
-    const bool changed=width_->value()!=base_.value.width || height_->value()!=base_.value.height || mode_->currentIndex()!=base_.value.windowMode || graphics_->currentIndex()!=static_cast<int>(base_.value.graphicsPreset);
+    const bool changed=presetChosen_ || width_->value()!=base_.value.width || height_->value()!=base_.value.height || mode_->currentIndex()!=base_.value.windowMode || graphics_->currentIndex()!=static_cast<int>(base_.value.graphicsPreset);
     if (!changed) return true;
     QMessageBox prompt(QMessageBox::Question,"Discard display changes?","Unsaved display changes will be discarded.",QMessageBox::NoButton,this);
     auto* keep=prompt.addButton("Keep editing",QMessageBox::RejectRole);

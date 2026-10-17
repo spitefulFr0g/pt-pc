@@ -27,6 +27,7 @@ private:
     QComboBox* graphics_ = nullptr;
     QLabel* status_ = nullptr;
     QTimer* activityMonitor_ = nullptr;
+    bool presetChosen_ = false;
     bool gameWasRunning_ = false;
     QString message_;
 };
