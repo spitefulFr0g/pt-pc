@@ -1,5 +1,7 @@
 #include "session.h"
+#include "supervisor.h"
 #include <QFile>
+#include <QCoreApplication>
 #include <QLockFile>
 #include <QProcess>
 #include <cerrno>
@@ -136,11 +138,34 @@ static bool guarded(const fs::path& bundle, const std::function<void()>& action,
     }
     auto state = InspectSession(root);
     if (state.activity != Activity::Stopped) { if (error) *error = state.error.isEmpty() ? "Game activity blocks this operation." : state.error; return false; }
+#ifdef __linux__
+    const bool managed = qEnvironmentVariableIsSet("PT_SESSION_BUNDLE");
+    const QString job = QString::number(QCoreApplication::applicationPid()) + ":" + QString::number(quintptr(&lock));
+    if (managed) {
+        auto response = SessionRequest(root, {{"v",1},{"op","job-begin"},{"job",job}});
+        if (response.isEmpty() || !response["error"].toString().isEmpty()) {
+            if (error) *error = "Cannot register managed work with the session supervisor.";
+            return false;
+        }
+    }
+    struct JobEnd {
+        const fs::path& root; const QString& job; bool managed;
+        ~JobEnd() { if (managed) SessionRequest(root, {{"v",1},{"op","job-end"},{"job",job}}); }
+    } end{root, job, managed};
+#endif
     action(); return true;
 }
 bool WithStoppedBundle(const fs::path& bundle, const std::function<void()>& mutation, QString* error) { return guarded(bundle, mutation, error); }
 static SessionState play(const fs::path& bundle, const std::vector<SupportedRuntime>& supported, LaunchMode mode, bool tryAnyway) {
     const fs::path root = bundleAbsolute(bundle);
+#ifdef __linux__
+    if (qEnvironmentVariableIsSet("PT_SESSION_BUNDLE")) {
+        auto response = SessionRequest(root, {{"v",1},{"op",mode == LaunchMode::VR ? "play-vr" : "play"},{"tryAnyway",tryAnyway}});
+        auto state = InspectSession(root);
+        state.error = response.isEmpty() ? "Gaming Mode supervisor is unavailable. Reopen the session." : response["error"].toString();
+        return state;
+    }
+#endif
     auto current = InspectSession(root);
     if (current.activity != Activity::Stopped) return current;
     QString failure;
@@ -188,7 +213,13 @@ static SessionState play(const fs::path& bundle, const std::vector<SupportedRunt
             "--settings", qpath(executable.parent_path() / "data" / "pt.ini"), "--log", log,
             mode == LaunchMode::VR ? "--vr" : "--no-vr", "--no-update-check"};
         qint64 pid = 0;
-        if (!QProcess::startDetached(qpath(executable), arguments, qpath(executable.parent_path()), &pid)) failure = "Could not start the game process. Open the game log and retry.";
+        QProcess process;
+        process.setProgram(qpath(executable)); process.setArguments(arguments);
+        process.setWorkingDirectory(qpath(executable.parent_path()));
+#ifdef __linux__
+        process.setUnixProcessParameters(QProcess::UnixProcessFlag::CreateNewSession);
+#endif
+        if (!process.startDetached(&pid)) failure = "Could not start the game process. Open the game log and retry.";
     }, &failure);
     auto result = InspectSession(root);
     if (started && failure.isEmpty() && result.activity == Activity::Stopped)

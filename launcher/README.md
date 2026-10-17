@@ -291,3 +291,56 @@ The final merged run's environment, helper hashes, per-platform results, full
 CTest output and space-check output are committed under
 `launcher/evidence/issue6/`; see `reproduction.md` for the exact environment and
 coverage boundaries.
+
+### Linux Gaming Mode session
+
+Use the explicit entry point `pt-launcher --gaming-mode /absolute/path/to/bundle`.
+The same executable runs a Qt Core local session server without constructing a
+GUI application. Its disposable GUI is a child; closing or crashing that GUI
+leaves a live game running. Running the entry point again reconnects to the
+bundle's existing supervisor and opens a GUI only if one is absent. The root
+exits when the GUI, game and registered work have finished. SIGTERM/SIGINT/SIGHUP
+or the IPC `shutdown` operation terminate the GUI and supervised game session.
+Do not use SIGKILL as graceful session shutdown.
+
+To add a non-Steam shortcut once, select the shipped launcher executable in
+Steam's **Add a Non-Steam Game** dialog, set Launch Options to
+`--gaming-mode "/absolute/path/to/bundle"`, and select the standard Steam Gamepad
+controller profile. Recreate the shortcut after moving the bundle. The launcher
+does not edit Steam's library or infer Gaming Mode from the distribution.
+Steam-client window switching and physical Deck behavior are not established by
+our controlled-process checks.
+
+The root preserves its original environment for games. Only its GUI child gets
+private Qt/plugin and launcher SDL settings. Linux kernel pidfd support is required; startup fails explicitly if unavailable.
+The per-user Unix socket is keyed
+by canonical bundle path; an exclusive bundle lock prevents duplicate roots.
+Protocol v1 uses bounded newline-delimited JSON requests and responses. For
+example:
+
+```
+pt-launcher --session-command /path/to/bundle '{"v":1,"op":"status"}'
+```
+
+Operations are `status`, `reconnect`, `play`, `play-vr`, `stop-game` (requires the
+current start identity), `shutdown`, `job-begin` and `job-end` (a nonempty `job`
+token). Managed GUI mutations register around the existing public bundle guard.
+Normal GUI closure waits for preparation cancellation/completion; a GUI crash
+releases its job registrations and leaves existing journals for the established
+recovery path. Registration is a lifetime contract, not permission to bypass
+bundle locking or update trust. Update transactions must use the same lifetime
+contract when that operation is implemented.
+
+Run the maintained noninteractive checks with:
+
+```
+launcher/tests/run-controller-test.sh "$HOME/.cache/pt-issue16-acceptance"
+```
+
+It builds in the maintained Qt 6.12 container environment, generates disposable
+archive and executable fixtures, runs the full launcher CTest suite including
+`launcher_supervisor`, fails on errors, and saves environment/build/test logs and
+artifact hashes in the specified directory. Python 3 is supplied by that build
+image. Supervisor tests use real offscreen Qt GUI processes, local IPC and shell
+game fixtures, with no game data, account, signing secrets or device. These are
+source-build lifecycle checks, not packaged target/compositor or Steam coverage.

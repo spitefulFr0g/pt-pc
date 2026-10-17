@@ -1,5 +1,6 @@
 #include "inspection.h"
 #include "session.h"
+#include "supervisor.h"
 #include "preparation.h"
 #include "settings_dialog.h"
 #include "controller.h"
@@ -92,10 +93,14 @@ protected:
     }
 };
 int main(int argc, char** argv) {
-    QApplication app(argc, argv);
     std::vector<pt::launcher::SupportedRuntime> supported;
     if (QString(PT_SUPPORTED_LINUX_SHA256).size() == 64) supported.push_back({"linux", PT_SUPPORTED_LINUX_SHA256, "bundled", PT_SUPPORTED_LINUX_VR != 0});
     if (QString(PT_SUPPORTED_WINDOWS_SHA256).size() == 64) supported.push_back({"windows", PT_SUPPORTED_WINDOWS_SHA256, "bundled", PT_SUPPORTED_WINDOWS_VR != 0});
+#ifdef __linux__
+    if (argc > 1 && (QString::fromLocal8Bit(argv[1]) == "--gaming-mode" || QString::fromLocal8Bit(argv[1]) == "--session-command"))
+        return pt::launcher::SessionEntry(argc, argv, supported);
+#endif
+    QApplication app(argc, argv);
     std::filesystem::path chosen;
     std::optional<pt::launcher::BundleInspection> cachedInspection;
     QString lastFailure;
@@ -103,6 +108,8 @@ int main(int argc, char** argv) {
     QSettings preferences("pt-pc", "pt-launcher");
     const QString lastBundle = preferences.value("lastBundle").toString();
     if (!lastBundle.isEmpty()) chosen = std::filesystem::path(lastBundle.toStdU32String());
+    if (qEnvironmentVariableIsSet("PT_SESSION_BUNDLE"))
+        chosen = std::filesystem::path(qEnvironmentVariable("PT_SESSION_BUNDLE").toStdU32String());
     auto applicationFolder = std::filesystem::path(QCoreApplication::applicationDirPath().toStdU32String());
 #ifdef _WIN32
     const auto bundledRoot = applicationFolder;
@@ -115,7 +122,8 @@ int main(int argc, char** argv) {
     // A newly extracted preview should prepare its own bundle. Remember an
     // explicitly opened bundle only for this particular portable launcher.
     const auto bundleOwner = QString::fromStdU32String(bundledRoot.u32string());
-    if (std::filesystem::is_regular_file(bundledRoot / runtimeRelative, pathError) &&
+    if (!qEnvironmentVariableIsSet("PT_SESSION_BUNDLE") &&
+        std::filesystem::is_regular_file(bundledRoot / runtimeRelative, pathError) &&
         (preferences.value("lastBundleOwner").toString() != bundleOwner || chosen.empty() ||
          !std::filesystem::is_regular_file(chosen / runtimeRelative, pathError))) chosen = bundledRoot;
 #ifdef PT_LAUNCHER_TEST_BUILD
@@ -155,6 +163,7 @@ int main(int argc, char** argv) {
     auto* files = new QPushButton("Game files — choose .pkg"); controls->addWidget(files);
     auto* folderFiles = new QPushButton("Import extracted game folder"); controls->addWidget(folderFiles);
     auto* openBundle = new QPushButton("Open existing portable bundle"); controls->addWidget(openBundle);
+    if (qEnvironmentVariableIsSet("PT_SESSION_BUNDLE")) openBundle->setEnabled(false);
     auto* preparationBar = new QProgressBar; preparationBar->hide(); controls->addWidget(preparationBar);
     auto* cancelPreparation = new QPushButton("Cancel preparation"); cancelPreparation->hide(); controls->addWidget(cancelPreparation);
     auto* updates = new QPushButton("Updates"); updates->setEnabled(false); controls->addWidget(updates);
