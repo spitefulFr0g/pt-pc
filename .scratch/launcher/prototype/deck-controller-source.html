@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P.T. — controller interaction prototype</title>
+<style>
+@font-face{font-family:PTGothic;src:url("assets/PirataOne-Regular.ttf") format("truetype");font-display:swap}
+*{box-sizing:border-box}body{margin:0;color:var(--foreground,#e7e9df);background:transparent;font:14px/1.5 "Trebuchet MS",Tahoma,sans-serif}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.4}button:focus-visible{outline:3px solid #bccca6;outline-offset:3px}button{border:1px solid #617461;border-radius:5px;background:#22342a;color:#e7e9df;padding:11px 14px;min-height:44px}button:hover:enabled{background:#304737}.intro{font-size:12px;color:var(--muted-foreground,#afb6af);margin:0 0 14px;max-width:85ch}.intro strong{color:var(--foreground,#e7e9df)}.launcher{border:1px solid #4b6251;border-radius:10px;overflow:hidden;background:#17231d;color:#e7e9df}.chrome{padding:11px 20px;background:#132019;border-bottom:1px solid #415746;display:flex;justify-content:space-between;font-size:12px;color:#bdc8b9}.stage{display:grid;grid-template-columns:.85fr 1.15fr;min-height:470px}.art{position:relative;overflow:hidden;background:#22342a;min-height:470px}.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%}.content{padding:27px 28px 23px;min-width:0;display:flex;flex-direction:column}.content h1{font:400 67px/1.1 PTGothic,Georgia,serif;letter-spacing:1px;margin:0 0 24px}.content h2{font-size:25px;font-weight:400;line-height:1.25;margin:0 0 18px}.content p{margin:0 0 13px}.stack{display:grid;gap:11px}.primary{background:#bccca6;color:#17231d;border-color:#bccca6;font-weight:700}.primary:hover:enabled{background:#d0dfbd}button.chosen{outline:3px solid #d1dfbe;outline-offset:3px;box-shadow:0 0 0 5px #17231d;position:relative;z-index:1}.launch button{font-size:16px;min-height:49px}.quiet{font-size:12px;line-height:1.7;color:#b6c1b3;margin:18px 0 24px}.quiet p{margin-bottom:6px}.link{background:transparent;border:0;text-decoration:underline;font-weight:400;font-size:12px;text-align:left;min-height:36px;padding:6px 2px}.tools{display:flex;flex-wrap:wrap;gap:8px 16px;border-top:1px solid #4b6251;padding-top:13px;margin-top:auto}.path{overflow-wrap:anywhere;font-size:12px;color:#b6c1b3}.hints{display:flex;flex-wrap:wrap;gap:14px;padding:12px 20px;border-top:1px solid #415746;color:#bcc9b6;font-size:12px;background:#132019}.glyph{display:inline-flex;border:1px solid #b9c8b2;border-radius:50%;width:21px;height:21px;align-items:center;justify-content:center;font-size:11px;color:#e7e9df;margin-right:5px} .pane .art{display:none}.pane .stage{grid-template-columns:1fr}.pane .content{max-height:500px;overflow-y:auto;min-height:470px}.back{margin:0 0 17px}.back button{padding:4px 0}.row{display:flex;justify-content:space-between;gap:16px;text-align:left;width:100%}.row small{color:#bcc9b6}.notice{border:1px solid #69754c;border-radius:5px;background:#2b3325;padding:13px;font-size:13px;margin-bottom:17px}.notice p{margin:0 0 10px}.progress{height:8px;background:#3e5241;border-radius:5px;margin:22px 0 8px;overflow:hidden}.progress span{display:block;height:100%;background:#bccca6}.picker{display:grid;gap:9px}.breadcrumb{margin-bottom:14px}.file-label{display:flex;align-items:center;gap:10px;text-align:left}.kind{color:#bcc9b6;font-size:11px;border:1px solid #4b6251;padding:1px 5px;border-radius:3px}.text-entry{text-align:left;overflow-wrap:anywhere;width:100%}.keyboard{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:7px;margin-top:18px}.keyboard button{padding:7px 0;min-width:0;min-height:42px}.key-actions{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:12px}.key-actions button{padding:10px 5px}.draft{min-height:46px;border:1px solid #617461;border-radius:5px;padding:10px 12px;overflow-wrap:anywhere;background:#101c16}.game{background:#142019;min-height:470px;display:flex;align-items:center;justify-content:center;padding:30px}.game>div{max-width:380px;text-align:center}.game h2{font:400 50px PTGothic,Georgia,serif;margin:0 0 15px}.game p{color:#bcc9b6;font-size:13px}.external{display:flex;gap:8px;flex-wrap:wrap;margin:13px 0}.external button,.walkthrough button{font-size:12px;color:var(--foreground,#e7e9df);background:var(--card,#22342a);border-color:var(--border,#617461);min-height:36px;padding:7px 10px}.external small{align-self:center;color:var(--muted-foreground,#b6c1b3)}.state{padding:14px 0;color:var(--muted-foreground,#b6c1b3);font-size:12px}.state dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px 18px;margin:0}.state dt{font-size:11px;margin-bottom:3px}.state dd{margin:0;color:var(--foreground,#e7e9df);overflow-wrap:anywhere}.state .last{margin-top:12px}.walkthrough{border-top:1px solid var(--border,#4b6251);padding:15px 0}.tabs{display:flex;flex-wrap:wrap;gap:7px}.tabs button[aria-selected=true]{border-color:#bccca6;background:#304737;color:#e7e9df}.steps{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.steps .done{opacity:.6}.walkthrough p{font-size:12px;color:var(--muted-foreground,#b6c1b3);max-width:85ch}.walkthrough h3{font-size:14px;margin:15px 0 5px}.freeplay{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}.freeplay button{min-width:44px;font-size:12px;padding:8px 10px}.demo-note{font-size:11px;color:var(--muted-foreground,#b6c1b3);margin:10px 0 0}@media(max-width:540px){.stage{grid-template-columns:1fr}.art{min-height:135px;max-height:135px}.art img{object-position:50% 42%}.content{padding:24px}.content h1{font-size:49px}.pane .content{max-height:none;min-height:400px}.keyboard{gap:5px}.keyboard button{font-size:12px;min-height:38px}.state dl{grid-template-columns:repeat(2,minmax(0,1fr))}.hints{gap:9px}.chrome{padding:10px 15px}.key-actions{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<p class="intro"><strong>Controller interaction study.</strong> Does the selected launcher work with a D-pad, A and B through setup, play and return? All files, input/session ownership and game actions here are simulated; no real files or processes change.</p>
+<div class="freeplay" aria-label="Simulated controller"><button data-input="left" aria-label="Move left">←</button><button data-input="up" aria-label="Move up">↑</button><button data-input="down" aria-label="Move down">↓</button><button data-input="right" aria-label="Move right">→</button><button data-input="activate">A · Select</button><button data-input="back">B · Back</button><button data-input="keyboard">X · Keyboard</button></div>
+<main id="app"></main>
+<div class="external" aria-label="Simulated environment"><small>Simulate:</small><button data-demo="game-exit">Game exits</button><button data-demo="launcher-return">Launcher brought forward</button><button data-demo="close-ui">Close launcher window</button><button data-demo="reopen">Reopen launcher</button><button data-demo="fallback">VR falls back to flat</button><button data-demo="controller">Controller disconnect/reconnect</button><button data-demo="deactivate">App loses/regains focus</button><button data-demo="advance">Work advances</button><button data-demo="reset">Reset</button></div>
+<aside id="state" class="state" aria-live="polite"></aside>
+<section class="walkthrough" aria-label="Guided walkthroughs"><div class="tabs" id="tabs" role="tablist" aria-label="Scenarios"></div><div id="walk"></div></section>
+<p class="demo-note">Arrow keys / D-pad / left stick move · Enter / A select · Escape / B back · X opens the built-in keyboard on a text field. Browser gamepad support, when available, drives this same interaction model. Native SDL, Steam Input and Gamescope integration are a separate implementation.</p>
+<script id="interaction-model">
+// Pure interaction model. Presentation, timers and physical input live in the second script.
+const DeckModel=(()=>{
+const folders={
+  '/home/deck':[{name:'Downloads',folder:true},{name:'pt-pcport',folder:true}],
+  '/home/deck/Downloads':[{name:'P.T. dump',folder:true},{name:'P.T.-CUSA01127.pkg',folder:false}],
+  '/home/deck/Downloads/P.T. dump':[{name:'chunk1.psarc',folder:false},{name:'texture.qar',folder:false}],
+  '/home/deck/pt-pcport':[{name:'game',folder:true}]
+};
+function initial(){return{view:'home',compact:false,focus:'play',origin:'files',returnFocus:'path',path:'/home/deck/Downloads',source:'',destination:'/home/deck/pt-pcport',text:'',draft:'',keyboardShift:false,vr:'unknown',session:false,mode:'',uiOpen:true,foreground:true,supervisor:true,inputConnected:true,armed:true,progress:42,work:'prepare',confirm:'',previousView:'home',previousFocus:'play',notice:'',fallback:false,settingsOriginal:null,settings:{resolution:'1280 × 800',window:'Borderless',preset:'Original',volume:'80%',voice:'Voice key',turn:'Snap',scale:'100%'},last:'Focus starts on Play.'};}
+function item(id,label,row,col=0,extra={}){return{id,label,row,col,...extra};}
+function controls(s){
+ if(!s.uiOpen||s.view==='game')return[];
+ if(s.view==='confirm')return[item('cancel',s.confirm==='cancel-work'?'Keep preparing':s.confirm==='discard-settings'?'Keep editing':'Keep launcher open',0),item('confirm',s.confirm==='cancel-work'?'Cancel preparation':s.confirm==='discard-settings'?'Discard changes':'Close launcher',1)];
+ if(s.view==='keyboard'){
+  const chars=(s.keyboardShift?'1234567890QWERTYUIOPASDFGHJKL_ZXCVBNM./-':'1234567890qwertyuiopasdfghjkl_zxcvbnm./-').split('');
+  return chars.map((c,i)=>item('key-'+i,c,Math.floor(i/10),i%10)).concat([item('space','Space',4,0),item('delete','Delete',4,s.compact?5:2),item('clear','Clear',s.compact?5:4,s.compact?0:4),item('shift',s.keyboardShift?'Lowercase':'Uppercase',s.compact?5:4,s.compact?5:6),item('done','Done',s.compact?6:4,s.compact?0:9)]);
+ }
+ if(s.view==='home')return[
+  item('play','Play',0,0,{disabled:s.session}),item('vr',s.vr==='unknown'?'Try VR anyway':'Play in VR',1,0,{disabled:s.session||s.vr==='missing'}),
+  ...(s.session?[item('resume','Return to game',2)]:[item('check-vr','Check VR',2)]),
+  item('settings','Settings',3,0),item('files','Game files',3,1),item('updates','Updates',3,2)
+ ];
+ const back=item('back','Back to play',0);
+ if(s.view==='files')return[back,item('source','Choose game source',1),item('path',s.destination,2,0,{text:true,disabled:s.session}),item('prepare','Prepare game',3,0,{disabled:!s.source||s.session}),item('adopt','Use existing game files',4,0,{disabled:s.session})];
+ if(s.view==='browser')return[item('up-folder','Parent folder',0,0,{disabled:s.path==='/home/deck'}),item('path',s.path,1,0,{text:true}),...(folders[s.path]||[]).map((f,i)=>item('file-'+i,f.name,i+2,0,{folder:f.folder})),item('choose-folder','Use this folder',8),item('back','Cancel selection',9)];
+ if(s.view==='settings')return[back,...Object.entries(s.settings).map(([k,v],i)=>item('setting-'+k,v,i+1,0,{disabled:s.session})),item('save-settings','Save changes',9,0,{disabled:s.session})];
+ if(s.view==='work')return[item('cancel-work','Cancel preparation',0)];
+ if(s.view==='updates')return[back,item('check-update','Check for updates',1,0,{disabled:s.session}),...(s.notice==='update-found'?[item('install-update','Install matching release',2)]:[])];
+ return[back];
+}
+function focusFirst(s,id){s.focus=id&&controls(s).some(c=>c.id===id&&!c.disabled)?id:(controls(s).find(c=>!c.disabled)?.id||'');return s;}
+function open(s,view,id){s.view=view;s.notice='';return focusFirst(s,id);}
+function inputAllowed(s){return s.uiOpen&&s.foreground&&s.view!=='game'&&s.inputConnected&&s.armed;}
+function openKeyboard(s){const c=controls(s).find(c=>c.id===s.focus);if(!c?.text)return s;s.previousView=s.view;s.returnFocus=s.focus;s.text=s.view==='files'?s.destination:s.path;s.draft=s.text;s.view='keyboard';s.last='Keyboard opened. B discards edits; Done applies them.';return focusFirst(s,'key-10');}
+function back(s){
+ if(s.view==='settings'&&s.settingsOriginal&&JSON.stringify(s.settings)!==JSON.stringify(s.settingsOriginal)){s.confirm='discard-settings';s.previousView='settings';s.previousFocus=s.focus;s.view='confirm';s.last='Back asks before discarding edited settings.';return focusFirst(s,'cancel');}
+ if(s.view==='keyboard'){s.view=s.previousView;s.focus=s.returnFocus;s.last='Keyboard canceled; original text preserved.';return s;}
+ if(s.view==='confirm'){s.view=s.previousView;s.focus=s.previousFocus;s.last='Returned without changing anything.';return s;}
+ if(s.view==='work'){s.confirm='cancel-work';s.previousView='work';s.previousFocus='cancel-work';s.view='confirm';s.last='Cancel requires confirmation; Keep preparing has focus.';return focusFirst(s,'cancel');}
+ if(s.view==='browser'){s.last='Selection canceled; existing source preserved.';return open(s,'files','source');}
+ if(s.view==='home'){s.confirm='close';s.previousView='home';s.previousFocus=s.focus;s.view='confirm';s.last='Back at home asks before closing the launcher.';return focusFirst(s,'cancel');}
+ s.last='Returned to Play.';return open(s,'home',s.view==='settings'?'settings':s.view==='updates'?'updates':'files');
+}
+function startGame(s,mode){if(s.session)return s;s.session=true;s.mode=mode;s.view='game';s.focus='';s.armed=false;s.foreground=false;s.last='Launcher goes to the background and releases controller input. Session helper keeps the game alive.';return s;}
+function activate(s){
+ const c=controls(s).find(c=>c.id===s.focus&&!c.disabled);if(!c)return s;const id=c.id;
+ if(c.text)return openKeyboard(s);
+ if(id==='back')return back(s);
+ if(s.view==='confirm'){
+  if(id==='cancel')return back(s);
+  if(s.confirm==='discard-settings'){s.settings=s.settingsOriginal;s.settingsOriginal=null;s.last='Unsaved settings discarded; previous preferences retained.';return open(s,'home','settings');}
+  if(s.confirm==='cancel-work'){s.last='Preparation canceled; existing installation preserved.';return open(s,'files','prepare');}
+  s.uiOpen=false;s.foreground=false;s.armed=false;s.supervisor=s.session;s.last=s.session?'Launcher closed. Session helper remains until the game exits.':'Launcher closed; session helper exits.';return s;
+ }
+ if(s.view==='keyboard'){
+  if(id==='done'){if(s.previousView==='files')s.destination=s.draft;else s.path=s.draft;s.view=s.previousView;s.focus=s.returnFocus;s.last='Text applied; focus returned to the edited field.';return s;}
+  if(id==='delete')s.draft=s.draft.slice(0,-1);else if(id==='clear')s.draft='';else if(id==='space')s.draft+=' ';else if(id==='shift')s.keyboardShift=!s.keyboardShift;else s.draft+=c.label;
+  s.last='Editing text in the built-in keyboard.';return s;
+ }
+ if(s.view==='browser'){
+  if(id==='up-folder'){s.path=s.path.split('/').slice(0,-1).join('/')||'/home/deck';s.last='Opened parent folder.';return focusFirst(s,'file-0');}
+  if(id.startsWith('file-')){if(c.folder){s.path+='/'+c.label;s.last='Opened '+c.label;return focusFirst(s,'file-0');}s.source=s.path+'/'+c.label;s.last='Selected '+c.label;return open(s,'files','prepare');}
+  if(id==='choose-folder'){s.source=s.path;s.last='Selected this folder as the game source.';return open(s,'files','prepare');}
+ }
+ if(s.view==='home'){
+  if(id==='play')return startGame(s,'flat');if(id==='vr')return startGame(s,'vr');
+  if(id==='resume'){s.view='game';s.foreground=false;s.armed=false;s.last='Returned focus to the existing game; no new process.';return s;}
+  if(id==='check-vr'){s.vr=s.vr==='missing'?'unknown':'missing';s.last=s.vr==='missing'?'Example check: OpenXR prerequisite missing; Play stays available.':'Example check is inconclusive; Try VR anyway stays explicit.';return focusFirst(s,'check-vr');}
+  if(['settings','files','updates'].includes(id)){if(id==='settings')s.settingsOriginal=structuredClone(s.settings);s.last='Opened '+(id==='files'?'game files':id)+'.';return open(s,id,id==='files'?'source':id==='settings'?'setting-resolution':'check-update');}
+  if(id==='close')return back(s);
+ }
+ if(s.view==='files'){
+  if(id==='source'){s.path='/home/deck/Downloads';s.last='Controller file picker opened.';return open(s,'browser','file-0');}
+  if(id==='prepare'){s.work='prepare';s.progress=42;s.last='Preparing game. Focus stays on Cancel; progress updates never steal it.';return open(s,'work','cancel-work');}
+  if(id==='adopt'){s.last='Existing example archives adopted without re-extraction.';return open(s,'home','play');}
+ }
+ if(s.view==='settings'){
+  if(id==='save-settings'){s.settingsOriginal=null;s.last='Edited settings saved to this platform; focus restored to Settings.';return open(s,'home','settings');}
+  const key=id.replace('setting-','');const options={resolution:['1280 × 800','1920 × 1080'],window:['Borderless','Windowed'],preset:['Original','Low','High','Ultra'],volume:['80%','100%','60%'],voice:['Voice key','Microphone'],turn:['Snap','Smooth'],scale:['100%','80%','120%']};if(options[key]){const opts=options[key];s.settings[key]=opts[(opts.indexOf(s.settings[key])+1)%opts.length];s.last='Changed '+key+' to '+s.settings[key]+'.';}return s;
+ }
+ if(s.view==='updates'){
+  if(id==='check-update'){s.notice='update-found';s.last='Example downstream release found; no download yet.';return focusFirst(s,'install-update');}
+  if(id==='install-update'){s.last='Example update staged and verified; helper replaces program files and restarts launcher.';s.notice='update-complete';return focusFirst(s,'back');}
+ }
+ return s;
+}
+function move(s,direction){
+ const list=controls(s).filter(c=>!c.disabled);const cur=list.find(c=>c.id===s.focus);if(!cur)return focusFirst(s);
+ const horizontal=direction==='left'||direction==='right',delta=['left','up'].includes(direction)?-1:1;
+ let candidates=list.filter(c=>c.id!==cur.id&&(horizontal?c.row===cur.row&&(c.col-cur.col)*delta>0:(c.row-cur.row)*delta>0));
+ candidates.sort((a,b)=>horizontal?Math.abs(a.col-cur.col)-Math.abs(b.col-cur.col):Math.abs(a.row-cur.row)-Math.abs(b.row-cur.row)||Math.abs(a.col-cur.col)-Math.abs(b.col-cur.col));
+ if(candidates[0])s.focus=candidates[0].id;s.last='Focus: '+(list.find(c=>c.id===s.focus)?.label||s.focus)+'.';return s;
+}
+function reduce(state,a){
+ if(a.type==='reset'){const n=initial();n.compact=state.compact;return n;}const s=structuredClone(state);
+ if(a.type==='layout'){s.compact=a.compact;return s;}
+ if(a.type==='demo'){
+  if(a.name==='game-exit'&&s.session){s.session=false;s.mode='';s.fallback=false;s.supervisor=s.uiOpen;s.last=s.uiOpen?'Game exited; launcher returns and waits for neutral controller input.':'Game exited; session helper exits too.';if(s.uiOpen){s.foreground=true;s.armed=false;open(s,'home','play');}}
+  if(a.name==='launcher-return'&&s.session&&s.uiOpen){s.foreground=true;s.armed=false;s.last='Launcher brought forward. Release controls before navigation resumes.';open(s,'home','resume');}
+  if(a.name==='close-ui'&&s.uiOpen){s.uiOpen=false;s.foreground=false;s.armed=false;s.supervisor=s.session;s.last=s.session?'Launcher window closed; game and helper continue.':'Launcher and session helper closed.';}
+  if(a.name==='reopen'){s.uiOpen=true;s.supervisor=true;s.foreground=true;s.armed=false;s.last=s.session?'Reconnected to the existing session; second launch disabled.':'Opened launcher.';open(s,'home',s.session?'resume':'play');}
+  if(a.name==='fallback'&&s.session&&s.mode==='vr'){s.mode='flat';s.fallback=true;s.uiOpen=true;s.foreground=true;s.armed=false;s.last='Known VR fallback detected; existing flat game is preserved.';open(s,'home','resume');}
+  if(a.name==='controller'){s.inputConnected=!s.inputConnected;s.armed=false;s.last=s.inputConnected?'Controller reconnected; waiting for neutral input.':'Controller disconnected; focus retained and keyboard/pointer still usable.';}
+  if(a.name==='deactivate'){s.foreground=!s.foreground;s.armed=false;s.last=s.foreground?'Foreground restored; waiting for neutral input.':'Background input is ignored and held/repeat state is cleared.';}
+  if(a.name==='advance'&&(s.view==='work'||(s.view==='confirm'&&s.confirm==='cancel-work'))){s.progress=Math.min(100,s.progress+29);if(s.progress===100){s.last='Preparation completed; pending cancel prompt dismissed.';open(s,'home','play');}else s.last='Preparation advanced; focus did not move.';}
+  return s;
+ }
+ if(a.type==='neutral'){if(s.uiOpen&&s.foreground&&s.inputConnected&&s.view!=='game')s.armed=true;return s;}
+ if(a.type==='choose'){if(!s.uiOpen||!s.foreground)return s;s.focus=a.id;return activate(s);}
+ if(a.type==='focus'){if(controls(s).some(c=>c.id===a.id&&!c.disabled))s.focus=a.id;return s;}
+ if(a.controller&&!inputAllowed(s))return s;
+ if(!s.uiOpen||!s.foreground||s.view==='game')return s;
+ if(a.type==='move')return move(s,a.direction);if(a.type==='activate')return activate(s);if(a.type==='back')return back(s);if(a.type==='keyboard')return openKeyboard(s);
+ if(a.type==='erase'&&s.view==='keyboard'){s.draft=s.draft.slice(0,-1);s.last='Text deleted.';}
+ if(a.type==='text'&&s.view==='keyboard'){s.draft+=a.text;s.last='Text entered.';}return s;
+}
+return{initial,controls,reduce,inputAllowed};
+})();
+</script>
+<script>
+let model=DeckModel.initial(),activeScenario=0,step=0;
+const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function btn(c,classes=''){return '<button data-id="'+c.id+'" class="'+classes+(model.focus===c.id?' chosen':'')+'" '+(c.disabled?'disabled':'')+'>'+esc(c.label)+'</button>';}
+function cbtn(id,classes=''){const c=DeckModel.controls(model).find(c=>c.id===id);return c?btn(c,classes):'';}
+const settingsLabels={resolution:'Resolution',window:'Window mode',preset:'Graphics preset',volume:'Volume',voice:'Voice input',turn:'VR turning',scale:'VR resolution scale'};
+function pane(){
+ const s=model;
+ if(s.view==='home')return '<h1>P.T.</h1>'+(s.fallback?'<div class="notice"><p>VR could not start. You can continue with the existing flat game.</p></div>':'')+'<div class="stack launch">'+cbtn('play','primary')+cbtn('vr')+(s.session?cbtn('resume','primary'):'')+'</div><div class="quiet">'+(s.vr==='missing'?'<p>No OpenXR runtime found in this example.</p>':s.vr==='unknown'?'<p>VR has not been checked. You can still try VR.</p>':'')+cbtn('check-vr','link')+'</div><nav class="tools" aria-label="Launcher tools">'+cbtn('settings','link')+cbtn('files','link')+cbtn('updates','link')+cbtn('close','link')+'</nav>';
+ if(s.view==='confirm')return '<h2>'+(s.confirm==='cancel-work'?'Cancel preparation?':s.confirm==='discard-settings'?'Discard settings changes?':'Close launcher?')+'</h2><p class="quiet">'+(s.confirm==='cancel-work'?'Your existing game files will stay intact.':s.confirm==='discard-settings'?'Your previously saved preferences will stay intact.':s.session?'Your game will keep running.':'You can open it again from Steam or its portable folder.')+'</p><div class="stack">'+cbtn('cancel','primary')+cbtn('confirm')+'</div>';
+ if(s.view==='keyboard')return '<h2>Edit '+(s.previousView==='files'?'destination':'folder path')+'</h2><div class="draft" aria-label="Text being edited">'+esc(s.draft||' ')+'</div><div class="keyboard">'+DeckModel.controls(s).filter(c=>c.id.startsWith('key-')).map(c=>btn(c)).join('')+'</div><div class="key-actions">'+['space','delete','clear','shift','done'].map(id=>cbtn(id,id==='done'?'primary':'')).join('')+'</div><p class="quiet">B cancels the edit. Done applies it and returns to the same field.</p>';
+ if(s.view==='work')return '<h2>Preparing your game</h2><p class="path">'+esc(s.source)+'</p><div class="progress"><span style="width:'+s.progress+'%"></span></div><p class="quiet">'+s.progress+'% · Example progress</p>'+cbtn('cancel-work')+'<p class="quiet">Back opens the same cancellation prompt.</p>';
+ const back='<div class="back">'+cbtn('back','link')+'</div>';
+ if(s.view==='files')return back+'<h2>Game files</h2><p class="quiet">Choose your dump folder or fPKG.</p><div class="stack">'+cbtn('source')+'<p class="path">'+esc(s.source||'No new source selected')+'</p><label class="path">Destination</label>'+cbtn('path','text-entry')+cbtn('prepare','primary')+cbtn('adopt')+'</div>';
+ if(s.view==='browser')return '<h2>Choose your game source</h2><div class="breadcrumb path">'+esc(s.path)+'</div><div class="picker">'+DeckModel.controls(s).map(c=>btn(c,c.id.startsWith('file-')?'file-label':c.id==='path'?'text-entry':c.id==='choose-folder'?'primary':'')).join('')+'</div>';
+ if(s.view==='settings')return back+'<h2>Settings</h2>'+(s.session?'<p class="quiet">Close the game before changing settings.</p>':'')+'<div class="stack">'+DeckModel.controls(s).filter(c=>c.id.startsWith('setting-')).map(c=>'<button data-id="'+c.id+'" class="row '+(s.focus===c.id?'chosen':'')+'" '+(c.disabled?'disabled':'')+'><span>'+settingsLabels[c.id.slice(8)]+'</span><span>'+esc(c.label)+'</span></button>').join('')+cbtn('save-settings','primary')+'</div>';
+ if(s.view==='updates')return back+'<h2>Updates</h2>'+(s.session?'<p class="quiet">Close the game before checking or installing an update.</p>':'<p class="quiet">Only matching downstream releases are offered.</p>')+cbtn('check-update')+(s.notice==='update-found'?'<div class="notice"><p>A matching release is available. Your saves and mods stay in place.</p>'+cbtn('install-update','primary')+'</div>':s.notice==='update-complete'?'<p class="quiet">Example update completed.</p>':'');
+ return '';
+}
+const scenarios=[
+ {name:'Play and return',description:'The game receives focus and controller ownership. On exit the launcher restores Play, but a held A cannot launch it twice.',steps:[['A · Play',{type:'activate',controller:true}],['Game exits',{type:'demo',name:'game-exit'}],['Release controls',{type:'neutral'}]]},
+ {name:'Prepare files',description:'Browse a sample source using the same A/Back actions, then prepare it. No desktop file picker is needed.',steps:[['Open Game files',{type:'choose',id:'files'}],['Choose source',{type:'activate',controller:true}],['Select fPKG',{type:'choose',id:'file-1'}],['Prepare',{type:'activate',controller:true}],['Work advances',{type:'demo',name:'advance'}],['Finish',{type:'demo',name:'advance'}]]},
+ {name:'Cancel safely',description:'Back during extraction opens a confirmation with Keep preparing selected. Progress does not steal focus; completion dismisses a stale cancel prompt.',seed:'work',steps:[['B · Back',{type:'back',controller:true}],['A · Keep preparing',{type:'activate',controller:true}],['B · Back',{type:'back',controller:true}],['Down · Cancel',{type:'move',direction:'down',controller:true}],['A · Confirm cancel',{type:'activate',controller:true}]]},
+ {name:'Edit a path',description:'The built-in keyboard works with controller actions. Back discards the draft and restores focus on the same text field.',steps:[['Open Game files',{type:'choose',id:'files'}],['Edit destination',{type:'choose',id:'path'}],['A · Type q',{type:'activate',controller:true}],['B · Discard draft',{type:'back',controller:true}]]},
+ {name:'VR unavailable',description:'A known VR-only blocker disables VR while Play stays enabled. A fallback keeps its existing game process.',steps:[['Check VR',{type:'choose',id:'check-vr'}],['Retry check (unknown)',{type:'choose',id:'check-vr'}],['Try VR anyway',{type:'choose',id:'vr'}],['Example fallback',{type:'demo',name:'fallback'}],['Release controls',{type:'neutral'}],['A · Continue flat',{type:'activate',controller:true}]]},
+ {name:'Close independently',description:'Steam targets a small session helper. Closing only the launcher window keeps the game alive; the helper exits after the last child is gone.',steps:[['A · Play',{type:'activate',controller:true}],['Close launcher window',{type:'demo',name:'close-ui'}],['Reopen launcher',{type:'demo',name:'reopen'}],['Release controls',{type:'neutral'}],['A · Return to game',{type:'activate',controller:true}],['Game exits',{type:'demo',name:'game-exit'}]]}
+];
+function startScenario(i){activeScenario=i;step=0;model=DeckModel.initial();model.compact=innerWidth<=540;if(scenarios[i].seed==='work'){model.source='/home/deck/Downloads/P.T.-CUSA01127.pkg';model.view='work';model.focus='cancel-work';}render();}
+function render(){
+ const s=model,hidden=!s.uiOpen||s.view==='game';
+ document.getElementById('app').innerHTML='<section class="launcher '+(s.view!=='home'?'pane':'')+'"><div class="chrome"><span>P.T. launcher</span><span>Steam Deck · Gaming Mode</span></div>'+(hidden?'<div class="game"><div><h2>'+(s.session?'Game window':'Launcher closed')+'</h2><p>'+(s.session?'Simulated game owns the controller. Use the environment controls below to return, exit, or close the launcher.':'Use Reopen launcher below.')+'</p></div></div>':'<div class="stage"><div class="art"><img src="assets/spooky-forest.jpg" alt="Tangled bare trees over a forest path in fog"></div><div class="content">'+pane()+'</div></div>')+'<footer class="hints"><span>D-pad / left stick · Move</span><span><span class="glyph">A</span>Select</span><span><span class="glyph">B</span>Back</span>'+(['files','browser','keyboard'].includes(s.view)?'<span><span class="glyph">X</span>Keyboard</span>':'')+'</footer></section>';
+ const focused=document.querySelector('[data-id="'+s.focus+'"]');if(focused){focused.focus({preventScroll:true});focused.scrollIntoView({block:'nearest',inline:'nearest'});}
+ const fields=[['Page',s.uiOpen?s.view:'closed'],['Focus',DeckModel.controls(s).find(c=>c.id===s.focus)?.label||'None'],['Controller receiver',DeckModel.inputAllowed(s)?'Launcher':s.session&&(!s.foreground||!s.uiOpen)?'Game':'Waiting / inactive'],['Game',s.session?s.mode+' session':'Stopped'],['Session helper',s.supervisor?'Alive':'Stopped'],['Input gate',!s.inputConnected?'Disconnected':!s.armed?'Waiting for release':s.foreground?'Foreground':'Background'],['Source',s.source||'Existing bundle'],['Destination',s.destination],['VR',s.vr],['Work',s.progress+'%'],['Keyboard draft',s.view==='keyboard'?s.draft:'Closed'],['Settings',Object.values(s.settings).join(' · ')]];
+ document.getElementById('state').innerHTML='<dl>'+fields.map(([k,v])=>'<div><dt>'+k+'</dt><dd>'+esc(v)+'</dd></div>').join('')+'</dl><div class="last">'+esc(s.last)+'</div>';
+ document.getElementById('tabs').innerHTML=scenarios.map((x,i)=>'<button role="tab" aria-selected="'+(activeScenario===i)+'" data-scenario="'+i+'">'+x.name+'</button>').join('');
+ const scene=scenarios[activeScenario];document.getElementById('walk').innerHTML='<h3>'+scene.name+'</h3><p>'+scene.description+'</p><div class="steps">'+scene.steps.map(([label,a],i)=>'<button data-step="'+i+'" '+(i!==step?'disabled':'')+' class="'+(i<step?'done':'')+'">'+label+'</button>').join('')+'</div><button data-restart style="margin-top:10px">Restart walkthrough</button>';
+}
+function dispatch(a){model=DeckModel.reduce(model,a);render();}
+function input(name,controller=true){dispatch(['up','down','left','right'].includes(name)?{type:'move',direction:name,controller}:{type:name,controller});}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.id)dispatch({type:'choose',id:b.dataset.id});else if(b.dataset.input){dispatch({type:'neutral'});input(b.dataset.input);}else if(b.dataset.demo){dispatch(b.dataset.demo==='reset'?{type:'reset'}:{type:'demo',name:b.dataset.demo});}else if(b.dataset.scenario!==undefined)startScenario(Number(b.dataset.scenario));else if(b.dataset.step!==undefined){const i=Number(b.dataset.step);if(i===step){step++;dispatch(scenarios[activeScenario].steps[i][1]);}}else if(b.hasAttribute('data-restart'))startScenario(activeScenario);});
+document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey)return;if(e.repeat&&['Enter','Escape'].includes(e.key)){e.preventDefault();return;}if(model.view==='keyboard'&&e.key.length===1){e.preventDefault();dispatch({type:'text',text:e.key});return;}const map={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',Enter:'activate',Escape:'back',x:'keyboard',X:'keyboard'};if(map[e.key]){e.preventDefault();input(map[e.key],false);}else if(model.view==='keyboard'&&e.key.length===1){e.preventDefault();dispatch({type:'text',text:e.key});}else if(model.view==='keyboard'&&e.key==='Backspace'){e.preventDefault();dispatch({type:'erase'});}});
+document.addEventListener('focusin',e=>{const id=e.target.dataset?.id;if(id&&id!==model.focus){model=DeckModel.reduce(model,{type:'focus',id});document.querySelectorAll('[data-id]').forEach(b=>b.classList.toggle('chosen',b.dataset.id===model.focus));}});
+document.addEventListener('visibilitychange',()=>{if(model.uiOpen&&model.view!=='game'){model.foreground=!document.hidden;model.armed=false;render();}});
+let lastPad='',lastTime=0;
+function poll(time){const pad=Array.from(navigator.getGamepads?.()||[]).find(Boolean);let action='';if(pad){if(pad.buttons[0]?.pressed)action='activate';else if(pad.buttons[1]?.pressed)action='back';else if(pad.buttons[2]?.pressed)action='keyboard';else if(pad.buttons[12]?.pressed||pad.axes[1]<-.55)action='up';else if(pad.buttons[13]?.pressed||pad.axes[1]>.55)action='down';else if(pad.buttons[14]?.pressed||pad.axes[0]<-.55)action='left';else if(pad.buttons[15]?.pressed||pad.axes[0]>.55)action='right';if(!action&&!model.armed&&model.uiOpen&&model.foreground&&model.inputConnected&&model.view!=='game')dispatch({type:'neutral'});if(action&&(action!==lastPad||(['up','down','left','right'].includes(action)&&time-lastTime>200))){input(action);lastTime=time;}lastPad=action;}requestAnimationFrame(poll);}
+model=DeckModel.reduce(model,{type:'layout',compact:innerWidth<=540});window.addEventListener('resize',()=>dispatch({type:'layout',compact:innerWidth<=540}));render();requestAnimationFrame(poll);
+</script>
+</body></html>

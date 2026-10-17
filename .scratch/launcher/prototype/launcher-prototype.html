@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P.T. launcher — throwaway UI study</title>
+<!-- Seven desktop-launcher variants across the requested design rounds on one throwaway route.
+     Use ?variant=A through G. F and G are the horror-inspired designs. Plain HTML is presentation only, not a toolkit decision.
+     All actions and checks are simulated, in memory. No file access or real launches. -->
+<style>
+@font-face{font-family:"PT Gothic";src:url("assets/PirataOne-Regular.ttf") format("truetype");font-style:normal;font-weight:400;font-display:swap;}
+*{box-sizing:border-box}body{margin:0;padding:0 0 90px;font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground,#202522);background:transparent;font-size:14px;line-height:1.5}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.42;cursor:not-allowed}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #cf895c;outline-offset:3px}button{border:1px solid var(--edge);border-radius:6px;padding:10px 14px;background:var(--soft);color:var(--ink);font-weight:600}button.primary{background:var(--brand);color:var(--onbrand);border-color:var(--brand)}button.text{background:transparent;border-color:transparent;padding:5px 8px;font-size:12px}.study{color:var(--muted-foreground,#78817a);font-size:12px;margin:0 0 12px}.study strong{color:var(--foreground,#24342a)}.demo-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:0 0 15px}.demo-controls label{font-size:11px;color:var(--muted-foreground,#78817a)}.demo-controls select{display:block;padding:7px 9px;border-radius:6px;border:1px solid var(--border,#bbb);background:var(--card,#f8f8f6);color:var(--foreground,#252b27);max-width:100%}.window{--ink:#edece8;--sub:#aaa9a3;--bg:#171918;--soft:#242725;--edge:#3b403c;--brand:#dc9b76;--onbrand:#1b1512;color:var(--ink);background:var(--bg);border:1px solid var(--edge);border-radius:var(--radius,12px);overflow:hidden}.windowbar{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;letter-spacing:.035em;padding:12px 18px;border-bottom:1px solid var(--edge);color:var(--sub)}.windowbar strong{font-weight:500;color:var(--ink)}.windowbar i{font-style:normal;letter-spacing:4px}.quiet{padding:28px}.quiet .hero{display:grid;grid-template-columns:1.1fr 1fr;gap:26px;align-items:center;padding:15px 0 30px}.eyebrow{color:var(--sub);font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:600}.wordmark{font-family:Georgia,serif;font-size:100px;line-height:1.1;font-weight:400;letter-spacing:-8px;margin:5px 0 10px}.subtitle{font-size:15px;color:var(--sub);max-width:260px;margin:0}.launchstack{display:grid;gap:10px}.launchstack button{font-size:16px;padding:15px;text-align:left}.launchstack button small{display:block;font-size:11px;font-weight:400;margin-top:3px}.quiet .meta{border-top:1px solid var(--edge);border-bottom:1px solid var(--edge);padding:13px 0;display:flex;justify-content:space-between;gap:8px;font-size:12px}.quiet .foot{display:flex;justify-content:space-between;align-items:center;padding-top:18px;gap:8px;flex-wrap:wrap}.quiet .foot>span{font-size:11px;color:var(--sub)}.status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--edge)}.status:last-child{border-bottom:0}.status p{margin:3px 0 0;color:var(--sub);font-size:12px}.status strong{font-size:13px}.tag{display:inline-block;border:1px solid var(--edge);border-radius:20px;padding:3px 8px;font-size:10px;font-weight:600;white-space:nowrap}.good{color:#91bc9b}.warn{color:#e2b977}.bad{color:#ee9f91}.notice{border:1px solid var(--edge);background:var(--soft);padding:14px;border-radius:8px;margin:14px 0}.notice strong{font-size:13px}.notice p{color:var(--sub);font-size:12px;margin:5px 0 10px}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sectiontitle{font-size:21px;line-height:1.2;margin:0 0 10px;letter-spacing:-.03em}.muted{font-size:12px;color:var(--sub)}.panel{padding:20px 0 0}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin:16px 0}.formgrid label,.field{font-size:12px;display:block;color:var(--sub)}.field{margin:12px 0}.formgrid select,.formgrid input:not([type=checkbox]),.field input{display:block;margin:5px 0 0;width:100%;padding:8px;background:var(--soft);color:var(--ink);border:1px solid var(--edge);border-radius:5px}.formgrid input[type=range]{padding:6px 0}.formgrid label:has(input[type=checkbox]){display:flex;align-items:center;gap:8px;color:var(--ink)}.sectionlabel{margin:18px 0 6px;font-size:12px;font-weight:600;color:var(--ink)}.progressbar{height:7px;border-radius:8px;background:var(--edge);overflow:hidden;margin:20px 0 8px}.progressbar span{display:block;height:100%;background:var(--brand)}.utility-window{--ink:#24332e;--sub:#66796f;--bg:#fbfcf9;--soft:#f0f3ed;--edge:#dce3d9;--brand:#245a48;--onbrand:white}.utility-window .good{color:#327347}.utility-window .warn{color:#966718}.utility-window .bad{color:#a63e35}.utility{display:grid;grid-template-columns:140px 1fr;min-height:500px}.sidebar{background:var(--soft);padding:24px 14px;border-right:1px solid var(--edge);display:flex;flex-direction:column;gap:4px}.sidebar h1{font-family:Georgia,serif;font-size:35px;font-weight:400;letter-spacing:-2px;margin:0 0 20px}.sidebar button{background:transparent;border-color:transparent;text-align:left;font-size:12px;padding:9px 10px}.sidebar button.active{background:var(--bg);border-color:var(--edge)}.sidebar small{margin-top:auto;padding-top:25px;font-size:10px;color:var(--sub)}.workspace{padding:27px 23px;min-width:0}.workspace .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:25px}.workspace .toolbar h2{font-size:24px;letter-spacing:-.05em;margin:0}.workspace .toolbar small{font-size:10px;color:var(--sub)}.utility .launchrow{margin-top:24px;display:flex;gap:10px;flex-wrap:wrap}.bundlepath{font-family:var(--font-mono,monospace);font-size:11px;overflow-wrap:anywhere;color:var(--sub)}.factrow{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--edge);font-size:12px}.factrow span{color:var(--sub)}.guided-window{--ink:#34382e;--sub:#7b7c6e;--bg:#f4f0e5;--soft:#ebe7da;--edge:#d8d4c7;--brand:#4a5b39;--onbrand:#fff}.guided-window .good{color:#4c7042}.guided-window .warn{color:#947126}.guided-window .bad{color:#a84c3a}.guided{padding:26px}.guided header{display:flex;justify-content:space-between;align-items:start;gap:14px}.guided h1{font-size:28px;letter-spacing:-.05em;margin:0}.guided h1 em{font:normal 34px Georgia,serif}.guided header p{margin:2px 0 0;color:var(--sub);font-size:12px}.steps{list-style:none;padding:0;display:flex;gap:0;margin:28px 0 30px}.steps li{flex:1;border-top:2px solid var(--edge);padding:10px 0 0;font-size:11px;color:var(--sub)}.steps li.current{border-color:var(--brand);color:var(--ink);font-weight:600}.steps li span{display:block;font-size:10px}.guided .stage{background:var(--bg);padding:0 5px;min-height:285px}.guided .stage h2{font-size:27px;font-weight:500;line-height:1.15;margin:5px 0 12px}.guided .stage .lead{font-size:14px;color:var(--sub);margin-bottom:23px}.guided footer{border-top:1px solid var(--edge);padding-top:16px;margin-top:25px;display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between}.study-state{margin:12px 0 0;padding:10px 0;color:var(--muted-foreground,#78817a);font-size:11px}.study-state strong{color:var(--foreground,#24342a);font-weight:500}.study-state div{margin-top:4px}.switcher{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:6px;background:#252b27;color:white;border:1px solid #626b63;border-radius:30px;padding:7px 9px;box-shadow:0 6px 20px #0003;max-width:calc(100% - 12px);white-space:nowrap}.switcher button{--edge:transparent;--soft:transparent;--ink:#c3ccc4;font-size:11px;padding:7px 10px;border-radius:20px}.switcher button.current{background:#e6eade;color:#243026}.switcher .arrow{font-size:16px;padding:4px 8px}.switcher-label{font-size:10px;color:#b8c4b9;padding:0 5px}.event{font-size:12px;color:var(--sub);margin:12px 0 0;overflow-wrap:anywhere}.back{margin-bottom:14px}.quiet .panel:empty{display:none}@media(max-width:540px){.quiet{padding:20px}.quiet .hero{grid-template-columns:1fr;padding-top:0;gap:22px}.wordmark{font-size:80px}.subtitle{max-width:none}.quiet .meta{flex-direction:column}.utility{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--edge);padding:12px;flex-direction:row;flex-wrap:wrap;align-items:center;gap:2px}.sidebar h1{font-size:25px;margin:0 8px 0 0}.sidebar small{display:none}.sidebar button{padding:6px 8px}.workspace{padding:20px}.workspace .toolbar{margin-bottom:16px}.guided{padding:20px}.formgrid{grid-template-columns:1fr}.switcher-label{display:none}.switcher button{font-size:10px;padding:6px}.switcher .arrow{font-size:16px;padding:4px 6px}.steps{margin:20px 0}.guided header{display:block}.guided header .tag{margin-top:10px}}
+
+/* D and E deliberately use their own type, palette, and layout. */
+.compact-window{--ink:#202939;--sub:#56667a;--bg:#f7fafd;--soft:#e7eef5;--edge:#c8d5e2;--brand:#315f94;--onbrand:#fff;max-width:520px;margin:0 auto;font-family:Tahoma,Verdana,sans-serif;border-radius:12px}
+.compact-window .good{color:#346647}.compact-window .warn{color:#8a5d17}
+.simple-chrome{display:flex;justify-content:space-between;gap:12px;padding:13px 20px;border-bottom:1px solid var(--edge);font-size:12px;color:var(--sub)}
+.compact-content{padding:26px 30px 22px}.compact-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:25px}
+.compact-heading h1{font-family:"Franklin Gothic Medium","Arial Narrow",Arial,sans-serif;font-size:44px;letter-spacing:-2px;line-height:1;margin:0}
+.compact-folder{display:flex;align-items:center;gap:8px;color:var(--sub);font-size:12px}.compact-folder button{border:0;background:transparent;padding:3px 0;text-decoration:underline;font-weight:400}
+.mode-picker{margin:0;padding:0;border:0;min-width:0}.mode-picker legend{padding:0;margin:0 0 12px;font-size:17px;font-weight:600}
+.mode-option{display:flex;align-items:center;gap:12px;border:1px solid var(--edge);padding:14px;border-radius:7px;margin:0 0 10px;cursor:pointer;font-size:15px;background:#fff;color:var(--ink)}
+.mode-option:has(input:checked){border:2px solid var(--brand);padding:13px;background:var(--soft)}
+.mode-option input{width:18px;height:18px;margin:0;accent-color:var(--brand)}
+.mode-option strong{font-weight:600}.mode-option span{display:block}.mode-option small{display:block;color:var(--sub);font-size:12px;margin-top:3px}
+.mode-readiness{font-size:13px;margin:17px 0;min-height:42px}.mode-readiness p{margin:0 0 6px}.mode-readiness button{padding:0;text-decoration:underline;font-size:12px;font-weight:400}
+.compact-launch{width:100%;padding:14px;font-size:17px}.compact-tools{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--edge);margin-top:23px;padding-top:13px}
+.compact-tools button{padding:5px 0;font-size:12px;background:transparent;border-color:transparent;text-decoration:underline;font-weight:400}
+.compact-content .sectiontitle{font-family:Tahoma,Verdana,sans-serif;font-size:22px;letter-spacing:0}.compact-content .formgrid{gap:12px}
+.simple-details{color:var(--sub);font-size:12px;margin:17px 0 0}.simple-details summary{cursor:pointer}.simple-details p{margin:8px 0}
+.compact-window :focus-visible,.twochoices-window :focus-visible{outline:3px solid var(--brand);outline-offset:3px}
+.twochoices-window{--ink:#243753;--sub:#617187;--bg:#fff;--soft:#eef0f6;--edge:#d6dce6;--brand:#6553a4;--onbrand:#fff;font-family:"Trebuchet MS",Aptos,sans-serif}
+.twochoices-window .good{color:#32674d}.twochoices-window .warn{color:#8b5e20}
+.twochoices-header{background:var(--soft);padding:23px 30px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.twochoices-header h1{font-size:38px;line-height:1;letter-spacing:-2px;margin:0;font-weight:700}
+.twochoices-header span{font-size:13px;color:var(--sub)}.twochoices-content{padding:28px 30px}
+.twochoices-content h2{font-size:29px;line-height:1.2;letter-spacing:-.6px;margin:0 0 10px;font-weight:600}
+.twochoices-content .intro{font-size:14px;color:var(--sub);margin:0 0 26px;max-width:60ch}
+.choice-list{border-top:2px solid var(--brand)}.choice-row{width:100%;display:flex;align-items:center;gap:18px;text-align:left;padding:24px 4px;border:0;border-bottom:1px solid var(--edge);border-radius:0;background:transparent;color:var(--ink);font-family:inherit}
+.choice-row:enabled:hover{background:var(--soft)}.choice-icon{flex:0 0 44px;color:var(--brand)}.choice-icon svg{width:40px;height:40px;display:block}
+.choice-copy{flex:1;min-width:0}.choice-copy strong{display:block;font-size:20px;font-weight:600;line-height:1.3}
+.choice-copy small{display:block;color:var(--sub);font-size:13px;font-weight:400;line-height:1.5;margin-top:5px}
+.choice-status{font-size:12px;font-weight:400;max-width:95px;text-align:right}.twochoices-help{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--sub);margin:16px 0}.twochoices-help button{padding:4px 0;border:0;background:transparent;text-decoration:underline;font-size:12px;font-weight:400}
+.twochoices-settings{margin-top:25px;padding:14px 0;display:flex;align-items:center;justify-content:space-between;gap:15px}
+.twochoices-settings span{color:var(--sub);font-size:12px}.twochoices-settings button,.twochoices-footer button{background:transparent;border-color:transparent;text-decoration:underline;font-size:12px;font-weight:400;padding:5px 0}
+.twochoices-footer{display:flex;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--edge)}
+.twochoices-content .sectiontitle{font-family:"Trebuchet MS",Aptos,sans-serif;letter-spacing:-.3px;font-size:25px}
+.session-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:15px 0;background:var(--soft);padding:12px;border-radius:6px;font-size:13px}
+.switcher select{font:600 12px var(--font-sans,system-ui,sans-serif);border:0;border-radius:18px;background:#e6eade;color:#243026;padding:8px 13px;max-width:220px}
+@media(max-width:540px){.compact-content{padding:24px 20px 20px}.compact-heading{margin-bottom:23px}.compact-heading h1{font-size:39px}.twochoices-header{padding:20px}.twochoices-content{padding:24px 20px}.twochoices-content h2{font-size:25px}.choice-row{gap:12px;padding:22px 0}.choice-copy strong{font-size:17px}.choice-status{font-size:11px;max-width:68px}.choice-icon{flex-basis:30px}.choice-icon svg{width:30px;height:30px}.twochoices-settings{align-items:flex-start}.compact-folder{font-size:11px}.switcher select{max-width:200px}.twochoices-content .formgrid{grid-template-columns:1fr}}
+
+
+/* F: pale fog, sparse horror-game menu. All illustration is original vector art. */
+.fog-window{--ink:#26302d;--sub:#4e5b53;--bg:#dee2d9;--soft:#eef0e8;--edge:#b2bbb0;--brand:#6c352e;--onbrand:#fff;font-family:Verdana,Tahoma,sans-serif}
+.fog-window .simple-chrome{background:#e7eae0;color:#4e5b53;border-color:#b5bdb1}
+.fog-stage{position:relative;isolation:isolate;min-height:590px;padding:38px;overflow:hidden}
+.fog-scene{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+.fog-mainmenu{max-width:330px;position:relative}.fog-mainmenu h1{font-family:Georgia,"Times New Roman",serif;font-size:88px;line-height:1;font-weight:400;letter-spacing:2px;margin:0 0 24px;color:#26302d;text-shadow:1px 2px #eef0e899}
+.fog-mainmenu .welcome{font-size:13px;line-height:1.7;margin:0 0 26px;color:#3e4a42}
+.fog-menulink{display:block;width:100%;text-align:left;background:transparent;border:0;border-left:3px solid transparent;border-radius:0;padding:13px 12px;color:#26302d;font:400 17px Verdana,Tahoma,sans-serif}
+.fog-menulink.play-link{font-weight:600}.fog-menulink:enabled:hover,.fog-menulink:focus-visible{border-left-color:#6c352e;background:#eef0e8bd;color:#5c2925;outline-offset:2px}
+.fog-menulink:disabled{opacity:.55}.fog-tools{margin:22px 0 0;padding:13px 0 0;border-top:1px solid #8a968b99;max-width:270px}
+.fog-tools button{display:block;width:100%;text-align:left;background:transparent;border:0;border-left:3px solid transparent;border-radius:0;font-size:13px;font-weight:400;padding:9px 12px}.fog-tools button:hover{border-left-color:#6c352e;background:#eef0e8bd}.fog-status{margin-top:26px;max-width:350px;padding:13px 15px;background:#eef0e8e8;border-left:2px solid #89918a;font-size:12px;line-height:1.65}
+.fog-status p{margin:0 0 4px}.fog-status button{font-size:12px;padding:3px 0;background:transparent;border:0;text-decoration:underline;font-weight:400}
+.fog-panel{position:relative;background:#eef0e8f5;padding:24px;border:1px solid #bdc5b8;border-radius:8px;max-width:640px;margin:auto}
+.fog-window .good{color:#38563d}.fog-window .warn{color:#714e20}.fog-window :focus-visible{outline:3px solid #6c352e}
+.fog-stage>.event{position:relative;background:#eef0e8ef;padding:12px;color:#37473b;max-width:500px;border-radius:5px}
+.fog-stage .notice{position:relative;background:#eef0e8f5;max-width:590px}.fog-mainmenu+.notice{margin-top:20px}
+.fog-window .back button{background:transparent;border:0;text-decoration:underline;font-size:12px;padding:2px 0}
+.foyer-window{--ink:#e7e9df;--sub:#b6c1b3;--bg:#17231d;--soft:#22342a;--edge:#4b6251;--brand:#bccca6;--onbrand:#17231d;font-family:"Trebuchet MS",Tahoma,sans-serif}
+.foyer-window .simple-chrome{background:#132019;color:#bdc8b9;border-color:#415746}
+.foyer-grid{display:grid;grid-template-columns:.92fr 1.08fr;min-height:555px}.foyer-art{position:relative;background:#273d2b;overflow:hidden;min-height:555px}
+.foyer-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%}.foyer-art svg{position:absolute;width:100%;height:100%;inset:0}.foyer-controls{padding:34px 28px 24px;min-width:0;display:flex;flex-direction:column}
+.foyer-controls h1{font-family:"PT Gothic",Georgia,serif;font-size:67px;letter-spacing:1px;font-weight:400;margin:0 0 30px;line-height:1.15}
+
+.foyer-launch{display:grid;gap:12px}.foyer-launch button{font-size:15px;padding:14px 12px;line-height:1.4;font-weight:600;border-radius:4px}
+.foyer-launch button:not(.primary){background:transparent;color:#e7e9df;border-color:#91a48b}
+.foyer-vr-note{font-size:12px;color:#b9c6b5;line-height:1.7;margin:18px 0 24px}.foyer-vr-note p{margin:0 0 6px}
+.foyer-vr-note button{font-size:12px;background:transparent;border:0;padding:0;color:#cbd6b8;text-decoration:underline;font-weight:400}
+.foyer-tools{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:auto;border-top:1px solid #4b6251;padding-top:15px}
+.foyer-tools button{font-size:12px;font-weight:400;color:#e7e9df;padding:4px 0;border:0;background:transparent;text-decoration:underline}
+.foyer-bundle{font-size:11px;color:#b6c1b3;margin-top:17px}
+.foyer-grid.has-panel{grid-template-columns:1fr}.foyer-grid.has-panel .foyer-art{display:none}.foyer-grid.has-panel .foyer-controls{padding:28px 32px}
+.foyer-controls .formgrid{grid-template-columns:1fr}.foyer-grid.has-panel .formgrid{grid-template-columns:1fr 1fr}
+.foyer-controls .sectiontitle{font-family:"Trebuchet MS",Tahoma,sans-serif;font-size:24px;letter-spacing:0}.foyer-window .warn{color:#e0bd80}.foyer-window .good{color:#b0c497}
+.foyer-window :focus-visible{outline:3px solid #bccca6}.foyer-controls .notice{background:#22342a}.foyer-controls .notice .actions button{font-size:12px;padding:8px}
+.foyer-controls>.event{padding:10px;background:#22342a;border-radius:4px;color:#c8d1c0}
+@media(max-width:540px){.fog-stage{padding:27px 23px;min-height:580px}.fog-mainmenu{max-width:285px}.fog-mainmenu h1{font-size:76px}.fog-menulink{font-size:16px}.fog-mainmenu .welcome{max-width:230px;background:#dee2d999}.fog-panel{padding:17px}.fog-scene{opacity:.8}.foyer-grid{grid-template-columns:1fr}.foyer-art{min-height:165px;max-height:165px}.foyer-art svg{width:100%;height:340px;top:-100px}.foyer-art img{object-position:50% 42%}.foyer-controls{padding:24px}.foyer-controls h1{font-size:49px}.foyer-vr-note{margin-bottom:20px}.foyer-grid.has-panel .foyer-controls{padding:23px}.foyer-grid.has-panel .formgrid{grid-template-columns:1fr}}
+
+.horror-choices{display:flex;gap:8px;margin:0 0 14px}.horror-choices button{font:600 13px var(--font-sans,system-ui,sans-serif);padding:9px 14px;border:1px solid var(--border,#999);color:var(--foreground,#26302d);background:var(--card,#eef0e8);border-radius:7px}.horror-choices button.current{background:var(--foreground,#26302d);color:var(--background,#fff)}
+</style>
+</head>
+<body>
+<p class="study"><strong>Design study.</strong> All actions are simulated. Nothing launches or changes your game files.</p><div class="horror-choices" aria-label="New horror designs"><button data-variant="F">F Fog menu</button><button data-variant="G">G Selected design</button></div>
+<div class="demo-controls">
+<label>Example scene<select id="scene"><option value="everyday">Everyday · VR not yet verified</option><option value="ready">Ready · prerequisite checks passed</option><option value="setup">First setup</option><option value="extracting">Long extraction</option><option value="vr-missing">VR prerequisite missing</option><option value="unknown">Readiness inconclusive</option><option value="fallback">VR fell back to flat</option><option value="update">Manual update</option><option value="rollback">Update failed · restored</option></select></label>
+<label>Example platform<select id="platform"><option>Windows</option><option>Linux</option></select></label>
+<button id="reset" style="--edge:var(--border,#bbb);--soft:var(--card,#f8f8f6);--ink:var(--foreground,#24342a);padding:7px 11px;font-size:12px">Reset demo</button>
+</div>
+<main id="app"></main>
+<aside class="study-state" id="study-state" aria-live="polite"></aside>
+<nav class="switcher" aria-label="Prototype layouts">
+<button class="arrow" id="previous" aria-label="Previous layout">←</button>
+<select id="layout-select" aria-label="Choose a layout"><optgroup label="New horror-inspired designs"><option value="F">F  Fog menu</option><option value="G">G  Selected design</option></optgroup><optgroup label="Earlier designs"><option value="A">A  Play first</option><option value="B">B  Utility</option><option value="C">C  Guided</option><option value="D">D  Compact</option><option value="E">E  Two choices</option></optgroup></select>
+<button class="arrow" id="next" aria-label="Next layout">→</button>
+</nav>
+<script>
+'use strict';
+const names={A:'Play first',B:'Utility',C:'Guided',D:'Compact',E:'Two choices',F:'Fog menu',G:'Selected design'};
+const params=new URLSearchParams(location.search);
+let variant=names[params.get('variant')]?params.get('variant'):'G';
+const demo={scene:'everyday',platform:'Windows',view:'home',launchMode:'flat',running:false,progress:42,source:'',event:'',settings:{resolution:'1920 × 1080',window:'Windowed',preset:'Original (PS4)',volume:'80',microphone:'System default',voiceKey:false,turn:'Snap',scale:'1.0'}};
+const app=document.getElementById('app');
+function esc(value){return String(value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function button(label,action,primary,disabled){return '<button type="button" data-action="'+action+'" class="'+(primary?'primary':'')+'" '+(disabled?'disabled':'')+'>'+label+'</button>';}
+function badge(text,kind){return '<span class="tag '+(kind||'')+'">'+text+'</span>';}
+function flatStatus(){return demo.scene==='setup'||demo.scene==='extracting'?'Needs setup':demo.scene==='unknown'?'Could not verify':'Ready';}
+function vrStatus(){if(demo.scene==='setup'||demo.scene==='extracting')return 'Needs setup';if(demo.scene==='vr-missing')return 'Needs attention';if(demo.scene==='fallback')return 'Did not start';if(demo.scene==='ready')return 'Prerequisites found';return 'Not yet verified';}
+function flatButton(){return button(demo.running?'Game running':flatStatus()==='Could not verify'?'Try flat anyway':'Play','flat',true,demo.running||flatStatus()==='Needs setup');}
+function vrButton(){return button(demo.running?'Game running':demo.scene==='ready'?'Play in VR':'Try VR anyway','vr',false,demo.running||['Needs setup','Needs attention'].includes(vrStatus()));}
+function statusRows(){return '<div class="status"><div><strong>Play on your display</strong><p>'+ (flatStatus()==='Ready'?'Game files and runtime found in this example.':flatStatus()==='Needs setup'?'Prepare your own game files first.':'A check could not finish. You can still try launching.')+'</p></div>'+badge(flatStatus(),flatStatus()==='Ready'?'good':'warn')+'</div><div class="status"><div><strong>Play in VR</strong><p>'+(demo.scene==='vr-missing'?'Connect your headset and start your chosen OpenXR runtime.':demo.scene==='fallback'?'The game continued on your display.':demo.scene==='ready'?'Example prerequisite checks passed; physical validation still pending.':demo.platform==='Windows'?'Quest 3 · Steam Link · active runtime unconfirmed':'Native Linux VR · headset/runtime not yet selected')+'</p></div>'+badge(vrStatus(),demo.scene==='ready'?'good':'warn')+'</div>';}
+function fallback(){if(demo.scene!=='fallback')return '';return '<div class="notice"><strong>VR did not start. You are playing flat.</strong><p>You can keep playing, or close the game before trying VR again.</p><div class="actions">'+button('Continue flat','continue',true)+button('Close and retry VR','retry-launch')+button('View log','log')+'</div></div>';}
+function recovery(){if(demo.scene==='vr-missing')return '<div class="notice"><strong>Your display is ready. VR needs attention.</strong><p>'+(demo.platform==='Windows'?'Connect your Quest 3, establish your Steam Link connection, and start the OpenXR runtime you use.':'Connect your chosen headset and start its OpenXR runtime. Linux hardware validation is still pending.')+'</p><div class="actions">'+button('Show setup steps','help')+button('Retry VR checks','retry',true)+'</div></div>';if(demo.scene==='unknown')return '<div class="notice"><strong>We could not verify this setup.</strong><p>This is an inconclusive result, not a confirmed incompatibility. You can retry the check or try playing.</p>'+button('Retry checks','retry')+'</div>';return '';}
+function settingsPanel(){const s=demo.settings;function opts(items,current){return items.map(function(x){return '<option '+(x===current?'selected':'')+'>'+esc(x)+'</option>';}).join('');}return '<h2 class="sectiontitle">Before you play</h2><p class="muted">Preferences for '+demo.platform+'. Changes made in-game are kept. Advanced options are available in the game.</p><div class="sectionlabel">Display & sound</div><div class="formgrid"><label>Resolution<select data-setting="resolution">'+opts(['1280 × 720','1920 × 1080','2560 × 1440'],s.resolution)+'</select></label><label>Window mode<select data-setting="window">'+opts(['Windowed','Borderless','Fullscreen'],s.window)+'</select></label><label>Graphics preset<select data-setting="preset">'+opts(['Low','Medium','Original (PS4)','High','Ultra','Custom'],s.preset)+'</select></label><label>Volume<input data-setting="volume" type="range" min="0" max="100" value="'+esc(s.volume)+'"></label><label>Microphone<select data-setting="microphone">'+opts(['System default','Choose in game'],s.microphone)+'</select></label><label><input data-setting="voiceKey" type="checkbox" '+(s.voiceKey?'checked':'')+'>Use voice-key fallback</label></div><div class="sectionlabel">VR comfort</div><div class="formgrid"><label>Turning<select data-setting="turn">'+opts(['Snap','Smooth'],s.turn)+'</select></label><label>Eye resolution scale<select data-setting="scale">'+opts(['0.7','1.0','1.3'],s.scale)+'</select></label></div><div class="actions">'+button('Apply demo settings','save-settings',true,demo.running)+button('Back to play','home')+'</div>'+(demo.running?'<p class="muted">Close the game before applying settings.</p>':'');}
+function setupPanel(){return '<h2 class="sectiontitle">Bring your copy of P.T.</h2><p class="muted">Choose your extracted game folder or supported fake PKG. Already have a portable bundle? Use it as it is.</p><label class="field">Game source<input id="source-path" placeholder="Your dump folder or fake PKG" value="'+esc(demo.source)+'"></label><div class="actions">'+button('Choose folder…','choose-folder')+button('Choose PKG…','choose-pkg')+'</div><label class="field">Destination folder<input value="pt-pcport" id="destination-path"></label><div class="notice"><strong>Your files stay yours.</strong><p>Game archives, saves and mods stay together. Linux and Windows keep separate preferences.</p></div><div class="actions">'+button('Prepare game','install',true,!demo.source)+button('Use existing bundle…','adopt')+'</div><p class="muted">Choosing files is simulated in this study.</p>';}
+function extractingPanel(){return '<h2 class="sectiontitle">Preparing your game</h2><p class="muted">Extracting your game archives. This may take a few minutes; your source is kept unchanged.</p><div class="progressbar"><span style="width:'+demo.progress+'%"></span></div><div class="factrow"><span>Archive extraction</span><strong>'+demo.progress+'%</strong></div><div class="factrow"><span>Destination</span><strong>pt-pcport</strong></div><div class="actions" style="margin-top:22px">'+button('Cancel preparation','cancel')+'</div><p class="muted">Demo controls: '+button('Advance extraction','advance')+'</p>';}
+function updatePanel(){return '<h2 class="sectiontitle">Update your bundle</h2><p class="muted">Manual updates from your personal downstream.</p>'+(demo.scene==='rollback'?'<div class="notice"><strong>The update could not finish.</strong><p>The previous program files were restored in this example. Your saves, mods and settings are kept.</p></div>':'<div class="factrow"><span>Release</span><strong>'+(demo.scene==='update'?'Example paired launcher + runtime':'No update check requested')+'</strong></div>')+'<div class="actions" style="margin-top:20px">'+button('Check for updates','check-update')+button('Install example update','update',true,demo.running||demo.scene!=='update')+'</div><p class="muted">'+(demo.running?'Close the game before installing an update.':'The launcher and matching runtime update together. Player data is preserved.')+'</p><div class="actions">'+button('Simulate update failure','fail-update')+button('Back to play','home')+'</div>';}
+function mainPanel(){if(demo.view==='settings')return settingsPanel();if(demo.view==='updates'||['update','rollback'].includes(demo.scene))return updatePanel();if(demo.scene==='setup'||demo.view==='setup')return setupPanel();if(demo.scene==='extracting')return extractingPanel();return '';}
+function eventText(){return demo.event?'<p class="event" aria-live="polite">'+esc(demo.event)+'</p>':'';}
+function titlebar(){return '<div class="windowbar"><strong>P.T. · Personal launcher</strong><span>'+demo.platform+' · simulated</span><i aria-hidden="true">− □ ×</i></div>';}
+function quietVariant(){const panel=mainPanel();return '<section class="window">'+titlebar()+'<div class="quiet">'+(panel?'<div class="back">'+button('← Play','home')+'</div>'+panel:'<div class="hero"><div><div class="eyebrow">Your copy. Your way back.</div><h1 class="wordmark">P.T.</h1><p class="subtitle">The hallway is waiting.</p></div><div class="launchstack">'+flatButton()+vrButton()+'<span class="muted">Choose the mode for this session.</span></div></div><div class="meta"><span>Portable bundle · <strong>pt-pcport</strong></span><span>Shared saves & mods</span></div>'+fallback()+recovery()+statusRows())+eventText()+'<div class="foot"><span>'+ (demo.running?'Session running':'Ready when you are')+'</span><div class="actions">'+button('Settings','settings')+button('Prepare / repair','setup')+button('Updates','updates')+(demo.running?button('End demo session','stop'):'')+'</div></div></div></section>';}
+function utilityVariant(){const panel=mainPanel();return '<section class="window utility-window">'+titlebar()+'<div class="utility"><nav class="sidebar"><h1>P.T.</h1>'+button('Overview','home',false)+button('Settings','settings')+button('Prepare / repair','setup')+button('Updates','updates')+'<small>One portable bundle<br>Upstream-compatible game</small></nav><div class="workspace"><div class="toolbar"><h2>'+(demo.view==='home'?'Your installation':'P.T. launcher')+'</h2>'+badge(demo.running?'Game running':'Portable')+'</div>'+(panel||'<div class="bundlepath">pt-pcport / runtime / '+demo.platform.toLowerCase()+'</div>'+statusRows()+fallback()+recovery()+'<div class="sectionlabel">This bundle</div><div class="factrow"><span>Game archives</span><strong>Shared between platforms</strong></div><div class="factrow"><span>Saves & mods</span><strong>Existing folders</strong></div><div class="factrow"><span>VR target</span><strong>'+(demo.platform==='Windows'?'Meta Quest 3':'Not selected')+'</strong></div><div class="launchrow">'+flatButton()+vrButton()+(demo.running?button('End demo session','stop'):'')+'</div>')+eventText()+'</div></div></section>';}
+function guidedVariant(){const panel=mainPanel();const setup=['setup','extracting'].includes(demo.scene)||demo.view==='setup';return '<section class="window guided-window">'+titlebar()+'<div class="guided"><header><div class="eyebrow">A little preparation. Then play.</div>'+badge(demo.platform+' bundle')+'</header><h1 style="margin-top:10px"><em>P.T.</em> &nbsp; Your next session</h1><ol class="steps"><li class="'+(setup?'current':'')+'">01 · Your copy<span>Choose or adopt</span></li><li class="'+(!setup?'current':'')+'">02 · Get ready<span>Files & headset</span></li><li>03 · Play<span>Display or VR</span></li></ol><div class="stage">'+(panel||'<div class="eyebrow">Your game is prepared</div><h2>How would you like to play?</h2><p class="lead">Your progress and mods are already here. Check your headset only when you want VR.</p>'+fallback()+recovery()+'<div class="actions">'+flatButton()+vrButton()+'</div><div style="margin-top:18px">'+statusRows()+'</div>')+eventText()+'</div><footer><div class="actions">'+button('Your copy','setup')+button('Preferences','settings')+button('Updates','updates')+'</div>'+(demo.running?button('End demo session','stop'):'<span class="muted">pt-pcport · shared saves</span>')+'</footer></div></section>';}
+
+function simpleChrome(){return '<div class="simple-chrome"><span>P.T. launcher</span><span>'+demo.platform+'</span></div>';}
+function modeMessage(mode){
+  const status=mode==='flat'?flatStatus():vrStatus();
+  if(status==='Needs setup')return 'Add your game files before you play.';
+  if(mode==='flat')return status==='Ready'?'Your game is ready to play.':'We could not finish a check. You can still try playing.';
+  if(status==='Needs attention')return 'Connect your headset and start the VR app you use, then check again.';
+  if(status==='Prerequisites found')return 'The example checks passed. You can start VR.';
+  if(status==='Did not start')return 'VR did not start. The game continued on your display.';
+  return 'Your headset has not been checked. You can still try VR.';
+}
+function compactVariant(){
+  const panel=mainPanel();
+  const mode=demo.launchMode||'flat';
+  const status=mode==='flat'?flatStatus():vrStatus();
+  const blocked=demo.running||['Needs setup','Needs attention'].includes(status);
+  const label=demo.running?'Game running':mode==='flat'?(flatStatus()==='Could not verify'?'Try playing anyway':'Play'):['Not yet verified','Did not start'].includes(status)?'Try VR anyway':'Play in VR';
+  const home='<div class="compact-heading"><h1>P.T.</h1><div class="compact-folder"><span>pt-pcport</span>'+button('Change','setup',false,demo.running)+'</div></div>'
+    +'<fieldset class="mode-picker"><legend>Where would you like to play?</legend><label class="mode-option"><input type="radio" name="launch-mode" value="flat" '+(mode==='flat'?'checked':'')+' '+(demo.running?'disabled':'')+'><span><strong>On my display</strong><small>Use your monitor and usual controls</small></span></label><label class="mode-option"><input type="radio" name="launch-mode" value="vr" '+(mode==='vr'?'checked':'')+' '+(demo.running?'disabled':'')+'><span><strong>In my headset</strong><small>'+(demo.platform==='Windows'?'Meta Quest 3 through Steam Link':'Use a compatible VR headset')+'</small></span></label></fieldset>'
+    +'<div class="mode-readiness"><p>'+esc(modeMessage(mode))+'</p>'+((mode==='vr'&&status!=='Prerequisites found')||status==='Could not verify'?button('Check again','retry'):'')+'</div>'
+    +'<button type="button" class="primary compact-launch" data-action="'+mode+'" '+(blocked?'disabled':'')+'>'+label+'</button>'
+    +(demo.running?'<div class="session-strip"><span>Session running</span>'+button('End demo session','stop')+'</div>':'')
+    +fallback()
+    +'<details class="simple-details"><summary>Show check details</summary><p>Display: '+flatStatus()+'. VR: '+vrStatus()+'.</p><p>'+(demo.platform==='Windows'?'The active OpenXR runtime is still unconfirmed.':'Linux headset and runtime selection are still pending.')+'</p></details>';
+  return '<section class="window compact-window">'+simpleChrome()+'<div class="compact-content">'+(panel?'<div class="back">'+button('Back to play','home')+'</div>'+panel:home)+eventText()+'<nav class="compact-tools" aria-label="Launcher tools">'+button('Settings','settings')+button('Game files','setup')+button('Updates','updates')+'</nav></div></section>';
+}
+function deviceIcon(mode){
+  return '<span class="choice-icon"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">'+(mode==='flat'?'<rect x="3" y="5" width="34" height="23" rx="2"/><path d="M20 28v7M11 35h18"/>':'<path d="M9 11c6-3 16-3 22 0l5 5v14c-4 3-9 3-12-1l-4-4-4 4c-3 4-8 4-12 1V16l5-5Z"/><path d="M4 18h32M12 24h1m14 0h1"/>')+'</svg></span>';
+}
+function choiceRow(mode){
+  const status=mode==='flat'?flatStatus():vrStatus();
+  const blocked=demo.running||['Needs setup','Needs attention'].includes(status);
+  const title=mode==='flat'?(status==='Could not verify'?'Try playing on my display':'Play on my display'):['Not yet verified','Did not start'].includes(status)?'Try VR anyway':'Play in VR';
+  const subtitle=mode==='flat'?(status==='Needs setup'?'Add your game files first.':'Use your monitor and usual controls.'):(status==='Needs attention'?'Connect your headset, then check again.':demo.platform==='Windows'?'Use your Meta Quest 3 through Steam Link.':'Use your chosen VR headset.');
+  const shortStatus=demo.running?'Running':status==='Not yet verified'?'Not checked':status==='Prerequisites found'?'Ready to try':status;
+  return '<button class="choice-row" type="button" data-action="'+mode+'" '+(blocked?'disabled':'')+'>'+deviceIcon(mode)+'<span class="choice-copy"><strong>'+title+'</strong><small>'+subtitle+'</small></span><span class="choice-status '+(['Ready','Prerequisites found'].includes(status)?'good':'warn')+'">'+shortStatus+'</span></button>';
+}
+function twoChoicesVariant(){
+  const panel=mainPanel();
+  const home='<h2>Choose how to play</h2><p class="intro">Your game files, saves and mods stay in pt-pcport.</p><div class="choice-list">'+choiceRow('flat')+choiceRow('vr')+'</div>'
+    +((demo.scene==='everyday'||demo.scene==='unknown')?'<div class="twochoices-help"><span>VR has not been checked.</span>'+button('Check VR','retry')+'</div>':'')
+    +recovery()+fallback()
+    +(demo.running?'<div class="session-strip"><span>Your game is running</span>'+button('End demo session','stop')+'</div>':'')
+    +'<div class="twochoices-settings"><span>'+esc(demo.settings.window)+'<br>'+esc(demo.settings.resolution)+'</span>'+button('Change settings','settings')+'</div>';
+  return '<section class="window twochoices-window"><header class="twochoices-header"><h1>P.T.</h1><span>'+demo.platform+'</span></header><div class="twochoices-content">'+(panel?'<div class="back">'+button('Back to play','home')+'</div>'+panel:home)+eventText()+'<nav class="twochoices-footer" aria-label="Launcher tools">'+button('Game files','setup')+button('Updates','updates')+'</nav></div></section>';
+}
+
+
+function fogArtwork(){
+  return '<svg class="fog-scene" viewBox="0 0 720 620" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>'
+  +'<linearGradient id="fog-sky" x2="0" y2="1"><stop stop-color="#c6cec2"/><stop offset=".65" stop-color="#e0e4d9"/><stop offset="1" stop-color="#b5bfb0"/></linearGradient>'
+  +'<linearGradient id="fog-road" x2="0" y2="1"><stop stop-color="#c6cdc0"/><stop offset="1" stop-color="#8d998c"/></linearGradient>'
+  +'<linearGradient id="fog-menu-haze"><stop stop-color="#e8ebe0" stop-opacity=".98"/><stop offset=".43" stop-color="#e6e9de" stop-opacity=".88"/><stop offset="1" stop-color="#d7ded1" stop-opacity=".05"/></linearGradient>'
+  +'<filter id="fog-soft"><feGaussianBlur stdDeviation="6"/></filter><filter id="fog-grain"><feTurbulence type="fractalNoise" baseFrequency=".67" numOctaves="3" stitchTiles="stitch" seed="6"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".075"/></feComponentTransfer></filter>'
+  +'</defs><path fill="url(#fog-sky)" d="M0 0h720v620H0z"/>'
+  +'<g opacity=".22" fill="#6d796c" filter="url(#fog-soft)"><path d="M365 328V250l70-49 72 49v78z"/><path d="M544 339V262l55-42 58 42v77z"/><path d="M248 337V282l42-32 44 32v55z"/></g>'
+  +'<g fill="#7b8878" opacity=".28"><path d="M473 343V262l78-64 80 64v81z"/><path d="m451 263 100-81 100 81-12 7-88-70-88 70z"/><rect x="494" y="275" width="24" height="36" fill="#bdc7b4"/><rect x="578" y="275" width="24" height="36" fill="#bdc7b4"/><rect x="539" y="289" width="25" height="54" fill="#505e50"/></g>'
+  +'<path d="M0 392 380 327l68 0 272 65v228H0z" fill="#adb9a5"/><path d="m178 620 213-293h42L653 620z" fill="url(#fog-road)"/>'
+  +'<path d="m410 360-1 35m0 42-5 54m-3 60-4 69" stroke="#d5dccb" stroke-width="2" opacity=".5"/>'
+  +'<g fill="none" stroke="#74816f" stroke-linecap="round"><path d="M645 472 628 74m5 137 43-78 7-60m-50 91-44-73-4-45m47 212 68-47 20-54m-76 199-71-53-29-65m89 9 37-12m-68-61-27-7" stroke-width="6" opacity=".55"/>'
+  +'<path d="m524 385-9-283m2 81-31-43-8-35m40 123 37-51 7-46m-43 126-49-28" stroke-width="3" opacity=".3"/>'
+  +'<path d="M703 423 686 47m-2 19-138 51m138-25-142 48" stroke-width="3" opacity=".25"/>'
+  +'<path d="m632 122-251 23-173-10" stroke-width="1" opacity=".4"/></g>'
+  +'<g stroke="#73806d" stroke-width="3" opacity=".45"><path d="m509 411 211 73m-191-72v34m27-25v36m31-25v36m34-24v38m37-24v42m39-24v43"/><path d="m492 392 228 66"/></g>'
+  +'<g fill="#e6eade" filter="url(#fog-soft)" opacity=".72"><ellipse cx="397" cy="325" rx="340" ry="46"/><ellipse cx="594" cy="377" rx="270" ry="26"/><ellipse cx="542" cy="467" rx="212" ry="17"/></g>'
+  +'<path fill="url(#fog-menu-haze)" d="M0 0h720v620H0z"/><path fill="#4c5948" filter="url(#fog-grain)" d="M0 0h720v620H0z"/></svg>';
+}
+function foyerArtwork(){
+  return '<svg viewBox="0 0 360 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>'
+  +'<linearGradient id="foyer-wall"><stop stop-color="#555744"/><stop offset="1" stop-color="#353b30"/></linearGradient>'
+  +'<linearGradient id="foyer-door" x2="1" y2="0"><stop stop-color="#383426"/><stop offset=".6" stop-color="#49412e"/><stop offset="1" stop-color="#25271e"/></linearGradient>'
+  +'<linearGradient id="foyer-floor" x2="0" y2="1"><stop stop-color="#5a4b34"/><stop offset="1" stop-color="#211e19"/></linearGradient>'
+  +'<radialGradient id="foyer-light"><stop stop-color="#d8b573" stop-opacity=".6"/><stop offset="1" stop-color="#d8b573" stop-opacity="0"/></radialGradient>'
+  +'<pattern id="foyer-paper" width="28" height="42" patternUnits="userSpaceOnUse"><path d="m14 6 7 11-7 12-7-12zM14 1v40" stroke="#858267" stroke-width=".65" opacity=".25" fill="none"/><circle cx="14" cy="17" r="2" fill="#989070" opacity=".2"/></pattern>'
+  +'<filter id="foyer-grain"><feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="2" stitchTiles="stitch" seed="14"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".1"/></feComponentTransfer></filter></defs>'
+  +'<path d="M0 0h360v560H0z" fill="url(#foyer-wall)"/><path d="M0 0h360v440H0z" fill="url(#foyer-paper)"/>'
+  +'<path d="m0 410 360-24v174H0z" fill="url(#foyer-floor)"/><path d="m0 390 360-18v15L0 414z" fill="#22271f"/><path d="m0 390 360-18" stroke="#8d8060" stroke-width="3"/>'
+  +'<g stroke="#807052" stroke-width="1" opacity=".35"><path d="m177 397-69 163m90-163-11 163m29-164 50 164m-108-163L22 560m208-164 120 164M0 451h360M0 488h360M0 535h360"/></g>'
+  +'<path d="M132 80h174v350l-174 10z" fill="#20261e"/><path d="M143 90h150v335l-150 8z" fill="#736647"/><path d="M153 103h129v316l-129 6z" fill="#090d0b"/>'
+  +'<path d="m157 105 86 31v297l-86-13z" fill="url(#foyer-door)" stroke="#1e231b" stroke-width="3"/>'
+  +'<g stroke="#786748" stroke-width="1.6" fill="none" opacity=".65"><path d="m168 127 62 20v110l-62-10z"/><path d="m168 271 62 8v132l-62-9z"/><path d="m177 136 43 13v96l-43-7z"/><path d="m177 284 43 4v109l-43-7z"/></g>'
+  +'<path d="m245 136 36-33v316l-36 14z" fill="#d8b573" opacity=".13"/><path d="m245 433 36-14L360 560H168z" fill="#d8b573" opacity=".09"/>'
+  +'<path d="M151 103h132M142 90h151M135 82h169" stroke="#b29560" opacity=".4"/><ellipse cx="231" cy="272" rx="3" ry="6" fill="#d8b573"/><path d="m230 270-10-2" stroke="#d8b573" stroke-width="3"/>'
+  +'<path d="M0 116h87v111H0z" fill="#29281e" stroke="#80704e" stroke-width="5"/><path d="M8 125h70v92H8z" fill="#66705c"/><path d="m8 189 32-25 38 31v22H8z" fill="#343f31"/><path d="m19 194 30-47 18 47z" fill="#8d937b" opacity=".4"/>'
+  +'<path d="M88 0v44" stroke="#24271f" stroke-width="3"/><path d="m63 45 14-15h24l17 15-3 19H65z" fill="#aa9467"/><ellipse cx="91" cy="64" rx="23" ry="5" fill="#dcc18a"/>'
+  +'<ellipse cx="100" cy="98" rx="112" ry="119" fill="url(#foyer-light)"/><path d="M320 0 310 194m8 26-4 79m-214-44-2 79m-76-95 6 122" stroke="#1e291e" stroke-width="1" opacity=".4"/>'
+  +'<path d="M0 0h360v560H0z" fill="#363a2c" filter="url(#foyer-grain)"/></svg>';
+}
+function horrorPlayLabel(mode){
+  if(mode==='flat')return 'Play';
+  return ['Not yet verified','Did not start'].includes(vrStatus())?'Try VR anyway':'Play in VR';
+}
+function horrorPlayButton(mode,kind){
+  const status=mode==='flat'?flatStatus():vrStatus();
+  return '<button type="button" data-action="'+mode+'" class="'+kind+'" '+(demo.running||['Needs setup','Needs attention'].includes(status)?'disabled':'')+'>'+horrorPlayLabel(mode)+'</button>';
+}
+function fogVariant(){
+  const panel=mainPanel();
+  const home='<div class="fog-mainmenu"><h1>P.T.</h1><p class="welcome">'+(demo.running?'Your game is running.':modeMessage('flat'))+'</p><nav aria-label="Play P.T.">'+horrorPlayButton('flat','fog-menulink play-link')+horrorPlayButton('vr','fog-menulink')+'</nav><nav class="fog-tools" aria-label="Launcher tools">'+button('Settings','settings')+button('Game files','setup')+button('Updates','updates')+'</nav><div class="fog-status"><p>Display: '+flatStatus()+'.</p><p>VR: '+vrStatus()+'.</p>'+(!demo.running?button('Check again','retry'):button('End demo session','stop'))+'</div></div>';
+  return '<section class="window fog-window">'+simpleChrome()+'<div class="fog-stage">'+fogArtwork()+(panel?'<div class="fog-panel"><div class="back">'+button('Back to play','home')+'</div>'+panel+'</div>':home+recovery()+fallback())+eventText()+'</div></section>';
+}
+function foyerVariant(){
+  const panel=mainPanel();
+  const home='<h1>P.T.</h1>'+(flatStatus()==='Could not verify'?'<p class="foyer-vr-note">We could not finish a check. You can still try playing.</p>':'')+'<div class="foyer-launch">'+horrorPlayButton('flat','primary')+horrorPlayButton('vr','')+'</div><div class="foyer-vr-note"><p>'+ (demo.platform==='Windows'?'Quest 3 through Steam Link.':'Your chosen VR headset.')+'</p><p>'+esc(modeMessage('vr'))+'</p>'+(!demo.running?button('Check VR','retry'):button('End demo session','stop'))+'</div>'+recovery()+fallback();
+  return '<section class="window foyer-window">'+simpleChrome()+'<div class="foyer-grid '+(panel?'has-panel':'')+'"><div class="foyer-art"><img src="assets/spooky-forest.jpg" alt="Tangled bare trees arching over a forest path in thick fog"></div><div class="foyer-controls">'+(panel?'<div class="back">'+button('Back to play','home')+'</div>'+panel:home)+eventText()+'<nav class="foyer-tools" aria-label="Launcher tools">'+button('Settings','settings')+button('Game files','setup')+button('Updates','updates')+'</nav><div class="foyer-bundle">pt-pcport</div></div></div></section>';
+}
+
+function render(){app.innerHTML=variant==='A'?quietVariant():variant==='B'?utilityVariant():variant==='C'?guidedVariant():variant==='D'?compactVariant():variant==='E'?twoChoicesVariant():variant==='F'?fogVariant():foyerVariant();document.getElementById('layout-select').value=variant;document.querySelectorAll('[data-variant]').forEach(function(b){b.classList.toggle('current',b.dataset.variant===variant);b.setAttribute('aria-pressed',b.dataset.variant===variant?'true':'false');});document.getElementById('scene').value=demo.scene;document.getElementById('platform').value=demo.platform;document.getElementById('study-state').innerHTML='<strong>'+variant+' '+names[variant]+'</strong> — example state, not detected hardware<div>'+demo.platform+' · source: '+(demo.source?'chosen':'existing bundle')+' · flat: '+flatStatus()+' · VR: '+vrStatus()+' · session: '+(demo.running?'running':'stopped')+' · page: '+demo.view+'</div><div>Settings: '+esc(demo.settings.resolution)+', '+esc(demo.settings.window)+', '+esc(demo.settings.preset)+' · '+esc(demo.settings.turn)+' turning · VR scale '+esc(demo.settings.scale)+'</div>';console.info('Prototype state',JSON.parse(JSON.stringify({variant:variant,...demo}))); }
+function setVariant(value){variant=value;try{const url=new URL(location.href);url.searchParams.set('variant',variant);history.replaceState(null,'',url);}catch(e){console.info('Inline preview: variant selection stays in memory.');}render();}
+function cycle(direction){const keys=Object.keys(names);setVariant(keys[(keys.indexOf(variant)+direction+keys.length)%keys.length]);}
+function selectScene(value){demo.scene=value;demo.view=['update','rollback'].includes(value)?'updates':'home';demo.running=value==='fallback';demo.progress=42;demo.event='';}
+document.addEventListener('click',function(e){const variantButton=e.target.closest('[data-variant]');if(variantButton){setVariant(variantButton.dataset.variant);return;}const b=e.target.closest('[data-action]');if(!b||b.disabled)return;const a=b.dataset.action;
+if(a==='home'){demo.view='home';if(['update','rollback'].includes(demo.scene))demo.scene='everyday';}
+if(a==='settings')demo.view='settings';
+if(a==='updates')demo.view='updates';
+if(a==='setup'){demo.view='setup';}
+if(a==='choose-folder'){demo.source='Example dump / CUSA01127';demo.event='Example folder selected. Nothing was read from disk.';}
+if(a==='choose-pkg'){demo.source='Example / P.T.-CUSA01127.pkg';demo.event='Example package selected. Nothing was read from disk.';}
+if(a==='adopt'){demo.scene='everyday';demo.view='home';demo.event='Demo: existing archives, saves and mods adopted in place.';}
+if(a==='install'){demo.scene='extracting';demo.view='home';demo.progress=42;demo.event='Demo preparation started.';}
+if(a==='advance'){demo.progress=Math.min(100,demo.progress+29);if(demo.progress===100){demo.scene='everyday';demo.event='Demo preparation complete. VR still needs verification.';}}
+if(a==='cancel'){demo.scene='setup';demo.view='home';demo.event='Demo preparation cancelled. The source and existing player data stay unchanged.';}
+if(a==='flat'){demo.running=true;demo.event='Demo: flat launch requested. No real game was started.';}
+if(a==='vr'){demo.running=true;demo.event='Demo: VR launch requested. A running process alone does not confirm a VR session.';}
+if(a==='stop'){demo.running=false;if(demo.scene==='fallback')demo.scene='everyday';demo.event='Demo session ended. In-game changes would be read back here.';}
+if(a==='continue'){demo.scene='everyday';demo.running=true;demo.event='Demo: continuing the existing flat session.';}
+if(a==='retry-launch'){demo.running=false;demo.scene='everyday';demo.event='Demo: game closed. You can retry VR when ready.';}
+if(a==='retry'){demo.scene='everyday';demo.event='Demo recheck: VR remains unverified; Try anyway is available.';}
+if(a==='help')demo.event='Demo setup steps: connect your headset, establish Steam Link if used, start your chosen OpenXR runtime, then retry. The launcher does not change your system runtime.';
+if(a==='log')demo.event='Demo log: VR initialization failed; the game continued in flat mode. No real log was read.';
+if(a==='save-settings'){demo.view='home';demo.event='Demo settings applied in memory only. Unexposed upstream options would be preserved.';}
+if(a==='check-update'){demo.scene='update';demo.event='Demo: a paired downstream launcher/runtime release is available.';}
+if(a==='update'){demo.scene='everyday';demo.view='home';demo.event='Demo: program files updated together. Player archives, saves, mods and settings kept.';}
+if(a==='fail-update'){demo.scene='rollback';demo.view='updates';demo.event='Demo: update failed and the previous program version was restored.';}
+render();});
+document.addEventListener('input',function(e){if(e.target.id==='source-path'){demo.source=e.target.value;const b=app.querySelector('[data-action="install"]');if(b)b.disabled=!demo.source;}if(e.target.dataset.setting){demo.settings[e.target.dataset.setting]=e.target.type==='checkbox'?e.target.checked:e.target.value;}});
+document.addEventListener('change',function(e){if(e.target.id==='layout-select'){setVariant(e.target.value);return;}if(e.target.name==='launch-mode'){demo.launchMode=e.target.value;render();return;}if(e.target.id==='scene'){selectScene(e.target.value);render();}if(e.target.id==='platform'){demo.platform=e.target.value;demo.event='Platform changed in the example only; no hardware detection.';render();}});
+document.getElementById('previous').onclick=function(){cycle(-1);};document.getElementById('next').onclick=function(){cycle(1);};
+document.getElementById('reset').onclick=function(){selectScene('everyday');demo.source='';demo.launchMode='flat';render();};
+document.addEventListener('keydown',function(e){if(e.target.closest('input,textarea,select,[contenteditable]'))return;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();cycle(e.key==='ArrowRight'?1:-1);}});
+render();
+</script>
+</body>
+</html>
