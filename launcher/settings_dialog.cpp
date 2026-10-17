@@ -17,6 +17,9 @@ SettingsDialog::SettingsDialog(std::filesystem::path bundle, Platform platform, 
     setModal(true);
     setObjectName("displaySettingsDialog");
     auto* layout = new QVBoxLayout(this);
+    auto* controllerHints = new QLabel("D-pad / stick: move    A: select    B: back    X: edit", this);
+    controllerHints->setObjectName("controllerHints");
+    layout->addWidget(controllerHints);
     auto* form = new QFormLayout;
     width_ = new QSpinBox(this); width_->setObjectName("displayWidth"); width_->setRange(320,16384); width_->setEnabled(false);
     height_ = new QSpinBox(this); height_->setObjectName("displayHeight"); height_->setRange(240,16384); height_->setEnabled(false);

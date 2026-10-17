@@ -2,6 +2,7 @@
 #include "session.h"
 #include "preparation.h"
 #include "settings_dialog.h"
+#include "controller.h"
 #include "readiness.h"
 #include <QApplication>
 #include <QFileDialog>
@@ -31,6 +32,10 @@
 #include <cstdlib>
 #include <memory>
 #include <optional>
+
+#if defined(PT_LAUNCHER_TEST_BUILD) && defined(__linux__)
+#include "tests/controller_launch_driver.h"
+#endif
 
 class Artwork : public QWidget {
 public:
@@ -116,7 +121,7 @@ int main(int argc, char** argv) {
     QFontDatabase::addApplicationFont(assets + "PirataOne-Regular.ttf");
     ResponsiveWindow window; window.setWindowTitle("P.T. Launcher"); window.resize(1000, 680);
     window.setAcceptDrops(true);
-    window.setStyleSheet("QWidget{background:#10271f;color:#e5e1d6;font:16px sans-serif} QPushButton{background:#294738;border:1px solid #688674;border-radius:7px;padding:11px;text-align:left} QPushButton:hover{background:#41634d} QPushButton:disabled{color:#9ba99d} QLabel#title{font:60px 'Pirata One'} QLabel#warning{color:#e8c495}");
+    window.setStyleSheet("QWidget{background:#10271f;color:#e5e1d6;font:16px sans-serif} QPushButton{background:#294738;border:1px solid #688674;border-radius:7px;padding:11px;text-align:left} QPushButton:hover{background:#41634d} QPushButton:focus{border:3px solid #e8c495;background:#41634d} QPushButton:disabled{color:#9ba99d} QLineEdit:focus,QComboBox:focus,QSpinBox:focus{border:2px solid #e8c495} QLabel#title{font:60px 'Pirata One'} QLabel#warning{color:#e8c495}");
     auto* layout = new QHBoxLayout(&window);
     window.layout = layout;
     auto* artwork = new Artwork(assets + "spooky-forest.jpg"); window.artwork = artwork;
@@ -126,6 +131,8 @@ int main(int argc, char** argv) {
     auto* panel = new QWidget; auto* controls = new QVBoxLayout(panel); controls->setSpacing(14); controls->setContentsMargins(28,30,28,30);
     auto* title = new QLabel("P.T."); title->setObjectName("title"); controls->addWidget(title);
     controls->addWidget(new QLabel("A quiet place to return.")); controls->addStretch();
+    auto* controllerHints = new QLabel("D-pad / stick: move    A: select    B: back");
+    controllerHints->setObjectName("controllerHints"); controllerHints->setWordWrap(true); controls->addWidget(controllerHints);
     auto* warning = new QLabel("Choose your P.T. .pkg in Game files, or drop it here."); warning->setObjectName("warning"); warning->setWordWrap(true); controls->addWidget(warning);
     auto* play = new QPushButton("Play"); play->setObjectName("play"); play->setEnabled(false); controls->addWidget(play);
     auto* flatReadinessLabel = new QLabel; flatReadinessLabel->setWordWrap(true); controls->addWidget(flatReadinessLabel);
@@ -144,6 +151,7 @@ int main(int argc, char** argv) {
     auto* updates = new QPushButton("Updates"); updates->setEnabled(false); controls->addWidget(updates);
     auto* details = new QLabel; details->setWordWrap(true); controls->addWidget(details);
     bool preparing = false, closeAfterPreparation = false, preparationLog = false, recoveryBlocked = false;
+    pt::launcher::ControllerAdapter* controllerAdapter = nullptr;
     auto* tryFlat = new QPushButton("Try Play anyway"); tryFlat->setObjectName("tryPlayAnyway"); tryFlat->hide(); controls->insertWidget(controls->indexOf(play) + 1, tryFlat);
     bool readinessPending = false, launchPending = false;
     pt::launcher::ModeReadiness flatReadiness, vrModeReadiness;
@@ -169,6 +177,7 @@ int main(int argc, char** argv) {
         if (closing || chosen.empty() || preparing) return;
         auto session = pt::launcher::InspectSession(chosen);
         if (previousRunning && session.activity == pt::launcher::Activity::Stopped) {
+            previousRunning = false; // Consume the transition before asynchronous refresh re-enters.
             lastFailure = "Game process exited. Open the game log or retry Play.";
             retry->show(); logButton->show();
             cachedInspection.reset();
@@ -345,7 +354,14 @@ int main(int argc, char** argv) {
     QObject::connect(cancelPreparation, &QPushButton::clicked, &window, [&] { confirmCancellation(false); });
     auto launchFlat = [&](bool tryAnyway) {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
+        launchPending = true;
+        if (controllerAdapter) controllerAdapter->releaseForHandoff();
         auto result = pt::launcher::PlayFlat(chosen, supported, tryAnyway);
+        launchPending = false;
+        if (controllerAdapter) {
+            if (result.activity == pt::launcher::Activity::Stopped) controllerAdapter->reopenAfterHandoff();
+            else controllerAdapter->releaseForHandoff();
+        }
         refresh();
         if (!result.error.isEmpty()) { lastFailure = result.error; warning->setText(result.error); retry->show(); logButton->show(); }
     };
@@ -354,7 +370,9 @@ int main(int argc, char** argv) {
     QObject::connect(vr, &QPushButton::clicked, &window, [&] {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
         const bool tryAnyway = vrModeReadiness.state == pt::launcher::ReadinessState::Unknown;
-        launchPending = true; play->setEnabled(false); tryFlat->setEnabled(false); vr->setEnabled(false); vrReadiness->setText("Starting the VR attempt…");
+        launchPending = true;
+        if (controllerAdapter) controllerAdapter->releaseForHandoff();
+        play->setEnabled(false); tryFlat->setEnabled(false); vr->setEnabled(false); vrReadiness->setText("Starting the VR attempt…");
         const auto bundle = chosen;
         auto result = std::make_shared<pt::launcher::SessionState>();
         auto* launchThread = QThread::create([bundle, supported, tryAnyway, result] {
@@ -362,6 +380,8 @@ int main(int argc, char** argv) {
         });
         QObject::connect(launchThread, &QThread::finished, &window, [&, result] {
             launchPending = false;
+            if (controllerAdapter && result->activity == pt::launcher::Activity::Stopped)
+                controllerAdapter->reopenAfterHandoff();
             if (!closing) {
                 if (!result->error.isEmpty()) {
                     lastFailure = result->error; warning->setText(result->error); retry->show(); logButton->show();
@@ -381,6 +401,7 @@ int main(int argc, char** argv) {
         cachedInspection.reset(); refresh();
     });
     QObject::connect(resume, &QPushButton::clicked, &window, [&] {
+        if (controllerAdapter) controllerAdapter->releaseForHandoff();
         QString error; pt::launcher::ReturnToGame(pt::launcher::InspectSession(chosen), &error);
         if (!error.isEmpty()) warning->setText(error);
     });
@@ -428,7 +449,7 @@ int main(int argc, char** argv) {
     }
     bool vrControlRetried = false;
     if (!chosen.empty()) QTimer::singleShot(300, &window, [&, testMode] {
-        if (testMode == "--test-close-readiness" || testMode == "--test-close-launch") return;
+        if (testMode == "--test-close-readiness" || testMode == "--test-close-launch" || testMode.startsWith("--test-controller-")) return;
         if (testMode == "--test-flat-unknown-control") {
             auto* readinessWait = new QTimer(&window); readinessWait->setInterval(10);
             QObject::connect(readinessWait, &QTimer::timeout, &window, [&, readinessWait] {
@@ -493,6 +514,13 @@ int main(int argc, char** argv) {
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); scroll->setWidget(panel);
     layout->addWidget(scroll, 3);
     window.show();
+    controllerAdapter = new pt::launcher::ControllerAdapter(&window, [&] {
+        return !launchPending && (chosen.empty() || pt::launcher::InspectSession(chosen).activity == pt::launcher::Activity::Stopped);
+    }, &window);
+#if defined(PT_LAUNCHER_TEST_BUILD) && defined(__linux__)
+    if (testMode == "--test-controller-flat" || testMode == "--test-controller-vr")
+        DriveControllerLaunch(&window, controllerAdapter, chosen, testMode.endsWith("-vr") ? vr : play);
+#endif
     if (argc == 3 && QString::fromLocal8Bit(argv[1]) == "--screenshot") {
         const QString output = QString::fromLocal8Bit(argv[2]);
         QTimer::singleShot(250, &window, [&window, output] {

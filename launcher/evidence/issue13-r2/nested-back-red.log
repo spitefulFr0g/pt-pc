@@ -1,0 +1,15 @@
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 8: launcher_controller
+1/1 Test #8: launcher_controller ..............***Failed    3.01 sec
+pt_launcher_controller_test: /repo/launcher/tests/controller_test.cpp:188: main(int, char**)::<lambda()>: Assertion `!timedOut' failed.
+bash: line 11:   334 Aborted                 (core dumped) "$@"
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   3.02 sec
+
+The following tests FAILED:
+	  8 - launcher_controller (Failed)
+Errors while running CTest

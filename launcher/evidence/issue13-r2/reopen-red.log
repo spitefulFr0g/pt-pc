@@ -1,0 +1,17 @@
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 7: launcher_controller
+1/1 Test #7: launcher_controller ..............Subprocess aborted***Exception:   1.22 sec
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+pt_launcher_controller_test: /repo/launcher/tests/controller_test.cpp:87: int main(int, char**): Assertion `SDL_GetGamepadFromID(virtualId) == nullptr' failed.
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   1.22 sec
+
+The following tests FAILED:
+	  7 - launcher_controller (Subprocess aborted)
+Errors while running CTest

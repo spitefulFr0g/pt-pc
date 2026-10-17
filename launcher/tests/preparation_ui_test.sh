@@ -23,7 +23,7 @@ Path(sys.argv[1]).write_bytes(qar)
 Path(sys.argv[2]).write_bytes(b'pt14_ synthetic path list fixture data ............')
 PY
 hash="$(sha256sum "$bundle/linux/pt" | cut -d' ' -f1)"
-QT_QPA_PLATFORM=xcb PT_LAUNCHER_TEST_SOURCE="$source" \
-  xvfb-run -a "$app" --test-preparation-prompt "$bundle" --test-supported-sha256 "$hash" \
+PT_LAUNCHER_TEST_SOURCE="$source" \
+  "$(dirname "$0")/run-qt-x11.sh" "$app" --test-preparation-prompt "$bundle" --test-supported-sha256 "$hash" \
   > "${fixture}/ui.log" 2>&1
 cat "${fixture}/ui.log"

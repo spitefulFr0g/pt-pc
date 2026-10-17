@@ -1,0 +1,15 @@
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 7: launcher_controller
+1/1 Test #7: launcher_controller ..............***Exception: Numerical  0.25 sec
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.25 sec
+
+The following tests FAILED:
+	  7 - launcher_controller (NUMERICAL)
+Errors while running CTest

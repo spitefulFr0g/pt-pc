@@ -1,0 +1,20 @@
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 7: launcher_controller
+1/1 Test #7: launcher_controller ..............Subprocess aborted***Exception:   2.63 sec
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+pt_launcher_controller_test: /repo/launcher/tests/controller_test.cpp:187: int main(int, char**): Assertion `edit->selectedText() == "draft resolution"' failed.
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   2.64 sec
+
+The following tests FAILED:
+	  7 - launcher_controller (Subprocess aborted)
+Errors while running CTest
