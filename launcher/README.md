@@ -19,3 +19,37 @@ This pass covers compilation and the Qt event loop with an offscreen platform pl
 ## Inspection behavior
 
 The public `InspectBundle` operation reads `CUSA01127` archives with unchanged upstream header checks and reports separate Linux/Windows runtimes, settings, and logs. Archive recognition is independent of runtime verification. The shipped UI has no approved release inventory yet, so it never calls a runtime verified or enables Play/Settings. This fixture does not prove complete archive integrity. The disabled actions are deliberate while their implementation tickets remain outstanding.
+
+## Flat session operations (issue #4)
+
+`InspectSession`, `PlayFlat`, `WithStoppedBundle`, and `ReturnToGame` are the public
+session operations. Play uses the current platform runtime only when its SHA-256
+matches an approved release hash supplied at build time through
+`PT_SUPPORTED_LINUX_SHA256` or `PT_SUPPORTED_WINDOWS_SHA256`. The repository does
+not yet contain a real downstream release inventory, so default builds leave
+Play disabled for unverified runtimes. A test-only launcher target supplies a
+synthetic fixture hash and clicks the actual Play button. No game or player data
+format is modified.
+
+The launcher remembers the selected bundle through Qt application preferences.
+A detached game process survives closing the GUI. On reopening, process activity
+is inspected anew. A bundle-scoped lock serializes launcher operations while
+process scanning detects compatible direct and script launches, which do not
+participate in that lock. `WithStoppedBundle` is the public mutation guard for
+later settings, preparation, and update slices; it checks activity while holding
+the lock. On Linux, process identity includes `/proc` start ticks; on Windows it
+includes the kernel process creation time. Uncertain identity blocks mutations.
+
+Run `launcher/run-issue4-qt612-container.sh` from a noninteractive shell to
+provision Qt 6.12.0 if needed, build in Ubuntu 24.04, run both Qt fixture tests,
+and save logs to `launcher/evidence/issue4-qt612/`. The command returns nonzero
+on setup, build, or test failure. The test creates disposable synthetic archives,
+a shell process fixture, and player files; it needs no game files or account.
+It uses Qt's offscreen plugin for session actions and Xvfb/Openbox/xcb for a
+controlled game window and Return to game. The original setup recipe and prior evidence remain
+under `launcher/evidence/issue3-qt612/`.
+
+Native compositor window focus and a clean packaged bundle remain pending.
+On X11, Return to game uses `xdotool` when available; on Wayland, the launcher
+points to the compositor's window switcher. Windows 11 MSVC/Qt build and runtime
+checks remain pending because the MSVC x64 toolset is unavailable on this host.

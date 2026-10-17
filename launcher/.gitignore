@@ -1,3 +1,8 @@
 evidence/*
 !evidence/issue3-qt612/
 !evidence/issue3-qt612/**
+!evidence/issue4-qt612/
+!evidence/issue4-qt612/*.log
+!evidence/issue4-qt612/*.txt
+evidence/issue4-qt612/build/
+evidence/issue4-qt612/packages.log
