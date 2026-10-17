@@ -48,12 +48,14 @@ def main():
                     raise subprocess.CalledProcessError(process.returncode, command)
 
         revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
-        # A future engine upgrade must deliberately advance the paired runtime pin.
+        # Linux rebuilds the pinned runtime's game sources with different
+        # build configuration to enable OpenXR. Verify game code stays at the
+        # source pin while allowing the scoped platform build changes.
         if subprocess.run(["git", "cat-file", "-e", RELEASE_SOURCE_REVISION + "^{commit}"],
                           cwd=REPO, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
             run("git", "fetch", "--no-tags", "--depth=1", "https://github.com/LoreanXavier/pt-pc.git",
                 RELEASE_SOURCE_REVISION)
-        run("git", "diff", "--exit-code", RELEASE_SOURCE_REVISION, revision, "--", "src", "cmake", "CMakeLists.txt")
+        run("git", "diff", "--exit-code", RELEASE_SOURCE_REVISION, revision, "--", "src")
         (evidence / "environment.json").write_text(json.dumps({
             "launcher_revision": revision, "platform": platform.platform(), "python": sys.version,
             "qt_prefix": env.get("QT_ROOT"), "runtime_release_source_revision": RELEASE_SOURCE_REVISION,

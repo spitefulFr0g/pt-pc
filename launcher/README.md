@@ -25,9 +25,11 @@ The pull-request and manual workflow builds the current launcher natively with s
 and pairs it with the published upstream v1.0.5 portable runtime. The Windows
 and Linux runtime ZIPs have fixed SHA-256 pins in
 `tools/ci/fetch_launcher_preview_runtime.py`; replacement assets fail verification.
-CI checks that the checkout's game code still matches the upstream release's
-source tag before pairing it. Each launcher embeds the actual runtime executable's
-hash through `PT_SUPPORTED_LINUX_SHA256` or `PT_SUPPORTED_WINDOWS_SHA256`.
+CI verifies the downloaded runtime against its fixed archive SHA-256 pin before
+pairing it. Linux rebuilds the pinned game code with build options for OpenXR;
+CI checks that files under `src` still match the pinned upstream source
+revision. Each launcher embeds the actual runtime executable's hash through
+`PT_SUPPORTED_LINUX_SHA256` or `PT_SUPPORTED_WINDOWS_SHA256`.
 
 The source snapshot's Windows game CMake references two unpublished files,
 `tools/dx12/spirv_to_hlsl.cpp` and `tests/unicode_paths_test.rc`. These preview
