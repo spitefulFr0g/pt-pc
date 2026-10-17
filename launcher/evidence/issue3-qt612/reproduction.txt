@@ -1,0 +1,22 @@
+Reproduction
+
+1. Install Qt 6.12.0 without changing host packages:
+
+   ```sh
+   python3 -m venv /tmp/launcher-qt-venv
+   /tmp/launcher-qt-venv/bin/pip install aqtinstall==3.3.0
+   /tmp/launcher-qt-venv/bin/aqt install-qt linux desktop 6.12.0 linux_gcc_64 -O /tmp/launcher-qt-6.12.0
+   ```
+
+2. In Ubuntu 24.04, install the compiler, CMake, zlib, OpenGL, D-Bus, GLib,
+   font, and xcb development/runtime packages used by this Qt build. Then run:
+
+   ```sh
+   CMAKE_PREFIX_PATH=/opt/qt/6.12.0/gcc_64 \
+     QT_QPA_PLATFORM=offscreen \
+     launcher/run-acceptance.sh /evidence
+   ```
+
+The saved configure/build/CTest logs and generated executable hashes correspond
+to source commit `7ac09edf6fede8a6ced84dd784ff094c369b4be4`. The captures are
+offscreen Qt screenshots, not native compositor or hardware evidence.

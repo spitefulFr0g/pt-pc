@@ -1,1 +1,3 @@
-evidence/
+evidence/*
+!evidence/issue3-qt612/
+!evidence/issue3-qt612/**
