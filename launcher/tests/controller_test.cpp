@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QAbstractItemView>
+#include <QStandardItemModel>
 #include <QSpinBox>
 #include <QScrollBar>
 #include <SDL3/SDL.h>
@@ -44,9 +45,18 @@ int main(int argc, char** argv) {
     // A real enabled but empty combo is a valid state while choices load.
     QComboBox empty(&window);
     layout->addWidget(&empty); empty.show(); empty.setFocus(); app.processEvents();
-    pt::launcher::DispatchControllerAction(&window, pt::launcher::ControllerAction::Right);
+    assert(!pt::launcher::DispatchControllerAction(&window, pt::launcher::ControllerAction::Right));
     assert(empty.currentIndex() == -1);
     empty.hide(); first->setFocus(); app.processEvents();
+
+    QComboBox allDisabled(&window); allDisabled.addItems({"A", "B"});
+    auto* allDisabledModel = qobject_cast<QStandardItemModel*>(allDisabled.model());
+    allDisabledModel->item(0)->setEnabled(false); allDisabledModel->item(1)->setEnabled(false);
+    layout->addWidget(&allDisabled); allDisabled.show(); allDisabled.setCurrentIndex(0);
+    allDisabled.setFocus(); app.processEvents();
+    assert(!pt::launcher::DispatchControllerAction(&window, pt::launcher::ControllerAction::Right));
+    assert(allDisabled.currentIndex() == 0);
+    allDisabled.hide(); first->setFocus(); app.processEvents();
 
     QComboBox choices(&window); choices.addItems({"Windowed", "Borderless", "Exclusive"});
     layout->addWidget(&choices); choices.show(); choices.setFocus(); app.processEvents();
@@ -291,6 +301,17 @@ int main(int argc, char** argv) {
     assert(settingsDialog.loaded()); settingsDialog.show(); settingsDialog.activateWindow();
     QApplication::setActiveWindow(&settingsDialog);
     auto* settingsWidth = settingsDialog.findChild<QSpinBox*>("displayWidth");
+    auto* graphicsPreset = settingsDialog.findChild<QComboBox*>("graphicsPreset");
+    assert(graphicsPreset && graphicsPreset->model()->flags(graphicsPreset->model()->index(4, 0)).testFlag(Qt::ItemIsEnabled) == false);
+    const int persistedGraphicsPreset = graphicsPreset->currentIndex();
+    graphicsPreset->setCurrentIndex(4); // The persisted Custom value remains displayable.
+    assert(graphicsPreset->currentIndex() == 4);
+    graphicsPreset->setCurrentIndex(3); graphicsPreset->setFocus(); app.processEvents();
+    assert(pt::launcher::DispatchControllerAction(&settingsDialog, pt::launcher::ControllerAction::Right));
+    assert(graphicsPreset->currentIndex() == 0); // Custom is visible but skipped while wrapping forward.
+    assert(pt::launcher::DispatchControllerAction(&settingsDialog, pt::launcher::ControllerAction::Left));
+    assert(graphicsPreset->currentIndex() == 3); // And skipped while wrapping backward.
+    graphicsPreset->setCurrentIndex(persistedGraphicsPreset);
     settingsWidth->setFocus();
     auto wait = [&](int ms) { QTimer::singleShot(ms, &loop, &QEventLoop::quit); loop.exec(); };
     auto pulse = [&](SDL_GamepadButton button) {

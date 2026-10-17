@@ -18,6 +18,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QResizeEvent>
+#include <QKeyEvent>
 #include <QPainter>
 #include <QCloseEvent>
 #include <QDragEnterEvent>
@@ -59,7 +60,15 @@ public:
     QWidget* artwork = nullptr;
     std::function<bool()> canClose;
     std::function<void(const QString&)> importSource;
+    std::function<bool()> handlePreparationBack;
 protected:
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Escape && handlePreparationBack && handlePreparationBack()) {
+            event->accept();
+            return;
+        }
+        QWidget::keyPressEvent(event);
+    }
     void closeEvent(QCloseEvent* event) override {
         if (canClose && !canClose()) event->ignore();
         else QWidget::closeEvent(event);
@@ -270,6 +279,11 @@ int main(int argc, char** argv) {
         });
         prompt->open();
     };
+    window.handlePreparationBack = [&] {
+        if (!preparing) return false;
+        confirmCancellation(false);
+        return true;
+    };
     std::function<void(const QString&, bool)> prepare;
     prepare = [&](const QString& source, bool recoverOnly) {
         if (preparing) { warning->setText("Game preparation is already running."); return; }
@@ -479,7 +493,8 @@ int main(int argc, char** argv) {
             const QByteArray source = qgetenv("PT_LAUNCHER_TEST_SOURCE");
             if (source.isEmpty()) qFatal("Test preparation source is missing");
             prepare(QString::fromUtf8(source), false);
-            confirmCancellation(false);
+            if (!pt::launcher::DispatchControllerAction(&window, pt::launcher::ControllerAction::Back))
+                qFatal("Controller Back did not route to preparation cancellation confirmation");
             if (!cancelPrompt || !cancelPrompt->defaultButton() || cancelPrompt->defaultButton()->text() != "Keep preparing") qFatal("Keep preparing is not the prompt default");
             QTimer::singleShot(50, &window, [&] {
                 preparationPromptFocus = QApplication::focusWidget();

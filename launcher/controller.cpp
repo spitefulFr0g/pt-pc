@@ -91,8 +91,19 @@ bool DispatchControllerAction(QWidget* scope, ControllerAction action) {
         }
         if (auto* combo = qobject_cast<QComboBox*>(focused)) {
             if (combo->count() == 0) return false;
-            combo->setCurrentIndex((combo->currentIndex() + (action == ControllerAction::Right ? 1 : combo->count() - 1)) % combo->count());
-            return true;
+            const int count = combo->count();
+            const int step = action == ControllerAction::Right ? 1 : -1;
+            int index = combo->currentIndex();
+            for (int visited = 0; visited < count; ++visited) {
+                index = (index + step + count) % count;
+                const QModelIndex candidate = combo->model()->index(index, combo->modelColumn(), combo->rootModelIndex());
+                const Qt::ItemFlags flags = combo->model()->flags(candidate);
+                if (flags.testFlag(Qt::ItemIsEnabled) && flags.testFlag(Qt::ItemIsSelectable)) {
+                    combo->setCurrentIndex(index);
+                    return true;
+                }
+            }
+            return false;
         }
         return false;
     case ControllerAction::Activate:
@@ -101,7 +112,9 @@ bool DispatchControllerAction(QWidget* scope, ControllerAction action) {
         return false;
     case ControllerAction::Back: {
         QKeyEvent event(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
-        return QApplication::sendEvent(focused, &event);
+        QWidget* receiver = QApplication::activeModalWidget();
+        if (!receiver) receiver = scope;
+        return QApplication::sendEvent(receiver, &event);
     }
     case ControllerAction::Edit:
         // Qt's software-input request is the extension seam for the later in-app
