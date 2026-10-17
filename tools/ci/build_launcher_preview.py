@@ -85,7 +85,13 @@ def main():
                 "-DZLIB_INSTALL=ON")
             run("cmake", "--build", zlib_build, "--parallel", args.jobs)
             run("cmake", "--install", zlib_build)
-            configure += ["-DCMAKE_CXX_COMPILER=cl", "-DZLIB_ROOT=" + str(zlib_install), "-DZLIB_USE_STATIC_LIBS=ON"]
+            # zlib 1.3.2 installs zs.lib; CMake 3.31's FindZLIB does not search
+            # that name. Select the library we just built explicitly.
+            zlib_library = zlib_install / "lib/zs.lib"
+            if not zlib_library.is_file():
+                raise FileNotFoundError(zlib_library)
+            configure += ["-DCMAKE_CXX_COMPILER=cl", "-DZLIB_ROOT=" + str(zlib_install),
+                          "-DZLIB_USE_STATIC_LIBS=ON", "-DZLIB_LIBRARY_RELEASE=" + str(zlib_library)]
         else:
             configure += ["-DCMAKE_CXX_COMPILER=g++-13"]
         run(*configure)
