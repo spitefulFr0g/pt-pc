@@ -13,8 +13,8 @@ docker run --rm \
   -v "$qt_root:/opt/qt:ro" \
   -v "$build_tools:/work/build-tools:ro" \
   -v "$evidence_dir:/evidence" \
-  -w /repo "$image" sh -lc '
-    set -eu
+  -w /repo "$image" bash -lc '
+    set -euo pipefail
     export PATH=/work/build-tools/bin:$PATH
     export QT_QPA_PLATFORM=offscreen
     /work/build-tools/bin/cmake -S launcher -B /evidence/build \
