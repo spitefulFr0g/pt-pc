@@ -58,3 +58,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test(NAME launcher_window COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-window-test.sh
     $<TARGET_FILE:pt_launcher_window_test> $<TARGET_FILE:pt_launcher_game_window_fixture>)
 endif()
+# The fixture programs use assert() for checks and operations such as waiting
+# for processes. Keep those checks active when the shipped launcher is Release.
+foreach(test IN ITEMS pt_launcher_inspection_test pt_launcher_session_test pt_launcher_window_test)
+  if(TARGET ${test})
+    if(MSVC)
+      target_compile_options(${test} PRIVATE /UNDEBUG)
+    else()
+      target_compile_options(${test} PRIVATE -UNDEBUG)
+    endif()
+  endif()
+endforeach()
