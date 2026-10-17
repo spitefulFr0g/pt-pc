@@ -42,6 +42,7 @@ BUILD = REPO / "build" / "release"
 # the public release page (docs/updates.md)
 GITHUB_REPO = "https://github.com/LoreanXavier/pt-pc"
 SETUP_NAME = "P.T.PC.Port.Setup.exe"
+LIBORBIS_REVISION = "643477263b2644e0803e0f58b8726ea4e3f3b7d4"
 
 p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 p.add_argument("--dest", type=pathlib.Path, required=True)
@@ -167,6 +168,12 @@ def liborbis_source() -> pathlib.Path:
     report["liborbis"] = str(liborbis)
     if not liborbis or not (liborbis / "LibOrbisPkg.Core" / "LibOrbisPkg.Core.csproj").exists():
         report["installer"] = "skipped: LibOrbisPkg source not found (--liborbis)"
+        finish(1)
+    revision = subprocess.run(["git", "-C", str(liborbis), "rev-parse", "HEAD"], check=True,
+                              capture_output=True, text=True).stdout.strip()
+    report["liborbis_revision"] = revision
+    if revision != LIBORBIS_REVISION:
+        report["error"] = f"LibOrbisPkg revision mismatch: expected {LIBORBIS_REVISION}, got {revision}"
         finish(1)
     source = BUILD / "liborbis-src"
     if source.exists():
