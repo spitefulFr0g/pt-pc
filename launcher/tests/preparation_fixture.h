@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <cassert>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -60,6 +61,23 @@ struct Fixture {
         put(root / "CUSA01127/player-save.bin", "player data");
         put(root / "unowned bundle note.txt", "unowned");
         put(root / platform / "data/pt.ini", "[network]\ncheck_updates=1\n\n[player]\nvolume=0.7\n");
+        const char* staged = std::getenv("PT_LAUNCHER_CONTROLLED_HELPER");
+        if (!staged) staged = std::getenv("PT_LAUNCHER_STAGED_EXTRACTOR");
+        if (staged) {
+            const auto target = root / platform / "extractor" / (std::string(platform) == "windows" ? "PT.PkgExtract.exe" : "PT.PkgExtract");
+            fs::create_directories(target.parent_path());
+            const auto helper = fs::u8path(staged);
+            if (fs::is_directory(helper)) {
+                for (const auto& entry : fs::recursive_directory_iterator(helper)) {
+                    const auto relative = fs::relative(entry.path(), helper);
+                    const auto copy = target.parent_path() / relative;
+                    if (entry.is_directory()) fs::create_directories(copy);
+                    else fs::copy_file(entry.path(), copy);
+                }
+            } else fs::copy_file(helper, target);
+            fs::permissions(target, fs::perms::owner_all,
+                            fs::perm_options::replace);
+        }
     }
 };
 
