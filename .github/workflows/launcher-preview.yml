@@ -1,6 +1,13 @@
 name: Launcher preview
 
 on:
+  pull_request:
+    paths:
+      - "launcher/**"
+      - "installer/**"
+      - "tools/ci/**"
+      - "tools/package.py"
+      - ".github/workflows/launcher-preview.yml"
   workflow_dispatch:
     inputs:
       version:
@@ -15,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: launcher-preview-${{ github.ref }}
+  group: launcher-preview-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -78,13 +85,27 @@ jobs:
             libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             xvfb xauth xdotool openbox
+      - name: Cache pinned Qt SDK
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/qt
+          key: launcher-qt-${{ runner.os }}-6.12.0-${{ hashFiles('tools/ci/install_launcher_preview_qt.py') }}
+      - name: Cache checksum-verified upstream archive
+        uses: actions/cache@v4
+        with:
+          path: build/launcher-preview/upstream-v1.0.5-${{ matrix.platform }}.zip
+          key: launcher-runtime-${{ matrix.platform }}-${{ hashFiles('tools/ci/fetch_launcher_preview_runtime.py') }}
       - name: Install shared Qt 6.12.0
         env:
           PREVIEW_PLATFORM: ${{ matrix.platform }}
           QT_FOLDER: ${{ matrix.qt_folder }}
+          QT_CACHE_HIT: ${{ steps.qt-cache.outputs.cache-hit }}
         run: |
           python -m pip install cmake==3.31.10 aqtinstall==3.3.0
-          python tools/ci/install_launcher_preview_qt.py --platform "$PREVIEW_PLATFORM" --output "$RUNNER_TEMP/qt"
+          if [ "$QT_CACHE_HIT" != true ]; then
+            python tools/ci/install_launcher_preview_qt.py --platform "$PREVIEW_PLATFORM" --output "$RUNNER_TEMP/qt"
+          fi
           python - <<'PY'
           import os
           from pathlib import Path
@@ -148,7 +169,7 @@ jobs:
           cat > notes.md <<EOF
           Portable Windows x64 and native Linux x86_64 previews of the current launcher and matching game runtime.
 
-          The launcher supports local package/folder preparation, bundle inspection and flat launch/reconnection. Select your P.T. fPKG in Game files or drop it onto the launcher; no separate extraction or system .NET SDK is needed. Settings, VR, controller navigation, Gaming Mode and authenticated launcher updates remain under development. These previews are unsigned and are not the signed release candidates described by the full launcher specification.
+          Select your supported P.T. fPKG, prepare it, then choose Play or Play VR. No separate extraction or system .NET SDK is needed. These unsigned portable previews preserve existing extracted-folder adoption. VR requires a compatible host OpenXR runtime; process startup does not establish headset presentation.
 
           Supply your own game archives using the included instructions. CI checks compilation and extracted-package startup; gameplay and hardware testing remain pending.
 

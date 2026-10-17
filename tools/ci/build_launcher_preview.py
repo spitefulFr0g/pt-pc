@@ -97,7 +97,8 @@ def main():
         run(*configure)
         run("cmake", "--build", launcher, "--parallel", args.jobs)
         env["QT_QPA_PLATFORM"] = "offscreen"
-        run("ctest", "--test-dir", launcher, "--output-on-failure", "--timeout", "90", "-R", "launcher_")
+        run("ctest", "--test-dir", launcher, "--output-on-failure", "--timeout", "90", "-R",
+            "^launcher_(inspection|readiness|session|preparation|preparation_ui|preparation_process|settings|settings_dialog)$")
         shutil.rmtree(stage, ignore_errors=True)
         run("cmake", "--install", launcher)
         run(sys.executable, REPO / "tools/ci/package_launcher_preview.py",

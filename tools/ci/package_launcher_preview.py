@@ -237,8 +237,10 @@ def main():
             "The original source stays in place. "
             "PlayFlat disables upstream update checks. If you start the game runtime "
             "directly, pass `--no-update-check`; upstream in-game updates are not "
-            "supported for this mixed preview bundle. Preparation, inspection and flat launch "
-            "are the preview scope; gameplay and platform compositor behavior need "
+            "supported for this mixed preview bundle. Choose **Play** for flat mode or **Play VR** to request VR. "
+            "A compatible graphics driver and host OpenXR runtime are required for VR; "
+            "the launcher does not configure system VR services. Missing VR prerequisites "
+            "leave flat play available. Headset presentation and gameplay need "
             "manual testing. See `PREVIEW-NOTICES.md` for source and licenses.\n",
             encoding="utf-8")
         (root / "PREVIEW-NOTICES.md").write_text(
