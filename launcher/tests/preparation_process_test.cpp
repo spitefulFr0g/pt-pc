@@ -6,6 +6,8 @@
 #include <sys/wait.h>
 #include <sys/prctl.h>
 #include <signal.h>
+#include <thread>
+#include <chrono>
 
 static void stopped(QProcess& child) {
     int status = 0;
@@ -28,6 +30,11 @@ static void preserved(Fixture& f) {
     assert(get(f.root / "install-notes.txt") == "previous notes");
 }
 int main(int argc, char** argv) {
+    if (argc == 3 && std::getenv("PT_TEST_HELPER_MODE")) {
+        const std::string mode = std::getenv("PT_TEST_HELPER_MODE");
+        if (mode == "hang") for (;;) std::this_thread::sleep_for(std::chrono::seconds(1));
+        return mode == "failure" ? 23 : 0;
+    }
     QCoreApplication app(argc, argv);
     if (argc == 5 && std::string(argv[1]) == "--prepare") {
         auto result = PrepareGame(argv[2], argv[3], {{"linux", argv[4], "fixture"}}, {}, [](const PreparationProgress& p) {
@@ -57,6 +64,24 @@ int main(int argc, char** argv) {
         assert(get(f.root / "unowned bundle note.txt") == "unowned");
         assert(get(f.root / "linux/data/pt.ini") == "[network]\ncheck_updates=1\n\n[player]\nvolume=0.7\n");
         std::cout << "PASS actual fs::space insufficient-space preflight: available=" << fs::space(f.root).available << std::endl; return 0;
+    }
+    for (const std::string mode : {"failure", "hang"}) {
+        qputenv("PT_LAUNCHER_CONTROLLED_HELPER", QCoreApplication::applicationFilePath().toUtf8());
+        qputenv("PT_TEST_HELPER_MODE", mode.c_str());
+        Fixture f;
+        const auto pkg = f.temporary.path().toStdString() + "/synthetic.pkg";
+        put(pkg, QByteArray("\x7f" "CNT\0", 4));
+        int cancelChecks = 0;
+        auto result = PrepareGame(f.root, fs::u8path(pkg), f.supported,
+            [&] { return mode == "hang" && ++cancelChecks >= 3; });
+        if (mode == "failure") assert(!result.ready && !result.cancelled && result.error.contains("Package helper failed"));
+        else assert(!result.ready && result.cancelled);
+        assert(get(fs::u8path(pkg)) == QByteArray("\x7f" "CNT\0", 4));
+        assert(get(f.root / "CUSA01127/player-save.bin") == "player data");
+        assert(get(f.root / "unowned bundle note.txt") == "unowned");
+        assert(!PreparationNeedsRecovery(f.root));
+        qunsetenv("PT_TEST_HELPER_MODE"); qunsetenv("PT_LAUNCHER_CONTROLLED_HELPER");
+        std::cout << "PASS controlled extractor " << mode << " preserves source and bundle\n";
     }
     assert(argc == 2);
     {

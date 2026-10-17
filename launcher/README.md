@@ -266,3 +266,24 @@ GUI/helper termination, Windows, native Wayland or SteamOS gates (#24/#26/#27).
 
 Red/green observations for the two defects found by these checks are recorded
 in `/tmp/pt-issue5-evidence/red-green.md` alongside the final run logs.
+
+## fPKG preparation acceptance (ticket #6)
+
+Run `launcher/run-issue6-acceptance.sh [evidence-directory]`. The default is
+`/tmp/pt-launcher-issue6-evidence`. The script provisions a build-only .NET
+10.0.402 SDK under `/tmp` if needed, checks out LibOrbisPkg at pinned revision
+`643477263b2644e0803e0f58b8726ea4e3f3b7d4`, and uses
+`tools/ci/publish_extractor.py` to build self-contained Linux x64 and Windows
+x64 helpers with LGPL notices and corresponding source. It stages each helper
+under the portable bundle's `extractor/` path, generates disposable synthetic
+fPKGs with `installer/Tests/Program.cs`, executes both staged helpers, compares
+the extracted archive bytes, then runs the Qt/GCC launcher suite with the Linux
+staged helper through public `PrepareGame`.
+
+The fixtures cover US, European and Japanese identities, archive relocation,
+invalid/unrelated/retail refusal, output preservation, helper failure and
+cancel, journal recovery, stale preparation prompt dismissal, containment,
+space preflight, and source/player/unowned file preservation. The process
+failure/hang controls are disposable copies of the test executable. The actual
+helper runs use synthetic packages only; none are playable game data. Evidence
+does not claim SteamOS, native Windows launcher GUI, or physical-device tests.
