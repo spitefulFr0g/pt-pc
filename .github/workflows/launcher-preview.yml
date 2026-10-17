@@ -148,7 +148,7 @@ jobs:
           cat > notes.md <<EOF
           Portable Windows x64 and native Linux x86_64 previews of the current launcher and matching game runtime.
 
-          The launcher currently supports bundle inspection and flat launch/reconnection. Preparation, settings, VR, controller navigation, Gaming Mode and authenticated launcher updates remain under development. These previews are unsigned and are not the signed release candidates described by the full launcher specification.
+          The launcher supports local package/folder preparation, bundle inspection and flat launch/reconnection. Select your P.T. fPKG in Game files or drop it onto the launcher; no separate extraction or system .NET SDK is needed. Settings, VR, controller navigation, Gaming Mode and authenticated launcher updates remain under development. These previews are unsigned and are not the signed release candidates described by the full launcher specification.
 
           Supply your own game archives using the included instructions. CI checks compilation and extracted-package startup; gameplay and hardware testing remain pending.
 

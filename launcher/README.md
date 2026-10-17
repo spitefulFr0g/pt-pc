@@ -1,5 +1,24 @@
 # Portable bundle inspection slice
 
+## Import your game
+
+Extract the portable preview and run `pt-launcher.exe` on Windows or
+`./pt-launcher` on Linux. The application automatically finds its bundled
+runtime. Choose **Game files — choose .pkg**, drop a local package onto the
+window, or pass its path as the launcher's sole command-line argument. Use
+**Import extracted game folder** for an already decrypted dump, including its
+`CUSA01127` folder. **Open existing portable bundle** switches to another
+prepared bundle.
+
+Preparation runs in the background with progress and cancellation. It uses the
+self-contained `extractor/PT.PkgExtract` helper included with the platform
+runtime; no .NET SDK or separate extraction tool is needed. The extractor accepts
+P.T. fPKGs and reports unsupported encrypted retail packages or damaged/unrelated
+sources. The source stays at its original location. Prepared archives are
+staged and checked before installation, while saves, mods and unrelated files
+are preserved. Interrupted preparation is recovered when the bundle is opened.
+When preparation succeeds, choose **Play**.
+
 ## Unsigned paired preview bundles
 
 The manual workflow builds the current launcher natively with shared Qt 6.12.0
@@ -70,11 +89,11 @@ unsupported for this mixed bundle. Direct runtime launches should also pass
 license, Qt LGPL/GPL exception texts, and runtime and platform dependency
 notices.
 
-After extraction, place your three extracted game archives in `CUSA01127` at
-the bundle root (`chunk1.psarc`, `texture.qar`, `pathid_list_ps4.bin`). Open the
-launcher and choose the extracted bundle root through **Game files**. The
-preview covers bundle inspection and flat launch with the matching runtime.
-Preparation, integrated settings, VR, controller features, secure updating,
+Import a package or extracted folder through the launcher as described above.
+Existing manually prepared bundles with the archives under `CUSA01127` at the
+bundle root can still be selected with **Open existing portable bundle**. The
+preview covers preparation, bundle inspection and flat launch with the matching runtime.
+Integrated settings, VR, controller features, secure updating,
 native Wayland, SteamOS/Hyprland/Gaming Mode, and gameplay remain unverified or
 pending. A passing CI smoke run is not a gameplay result.
 

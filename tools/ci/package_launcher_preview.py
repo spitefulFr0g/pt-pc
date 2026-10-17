@@ -197,6 +197,13 @@ def main():
                 f"launcher {args.platform} supported hash does not match {executable}")
         destination = root / args.platform
         shutil.copytree(runtime_stage, destination)
+        helper = destination / "extractor" / ("PT.PkgExtract.exe" if args.platform == "windows" else "PT.PkgExtract")
+        require(helper.is_file(), f"bundled package extraction helper missing: {helper}")
+        require((helper.parent / "LICENSE-LibOrbisPkg.txt").is_file()
+                and (helper.parent / "LibOrbisPkg-corresponding-source.zip").is_file(),
+                "package extraction helper license or corresponding source missing")
+        if args.platform == "linux":
+            require(os.access(helper, os.X_OK), "Linux package extraction helper is not executable")
         for stale in ("pt-updater", "pt-updater.exe", "pt-files.json"):
             (destination / stale).unlink(missing_ok=True)
         require(digest(destination / ("pt.exe" if args.platform == "windows" else "pt")) == runtime_sha,
@@ -220,13 +227,17 @@ def main():
             shutil.copy2(source, qt_notices / name)
         (root / "README-preview.md").write_text(
             "# Portable launcher preview\n\n"
-            "Extract this unsigned test bundle. Put your own extracted `chunk1.psarc`, "
-            "`texture.qar`, and `pathid_list_ps4.bin` under `CUSA01127/` at this "
-            "bundle root. Start `pt-launcher.exe` (Windows) or `./pt-launcher` (Linux), "
-            "then use **Game files** to choose this bundle root. "
+            "Extract this unsigned test bundle and start `pt-launcher.exe` (Windows) "
+            "or `./pt-launcher` (Linux). Use **Game files** to select your P.T. `.pkg`, "
+            "or drop it onto the launcher. The launcher prepares the archives inside "
+            "this bundle and enables **Play** when ready. You can also choose "
+            "**Import extracted game folder** for an existing decrypted dump. "
+            "No system .NET installation is needed. The bundled extractor supports "
+            "fPKGs; encrypted retail packages cannot be decrypted by this application. "
+            "The original source stays in place. "
             "PlayFlat disables upstream update checks. If you start the game runtime "
             "directly, pass `--no-update-check`; upstream in-game updates are not "
-            "supported for this mixed preview bundle. Inspection and flat launch "
+            "supported for this mixed preview bundle. Preparation, inspection and flat launch "
             "are the preview scope; gameplay and platform compositor behavior need "
             "manual testing. See `PREVIEW-NOTICES.md` for source and licenses.\n",
             encoding="utf-8")

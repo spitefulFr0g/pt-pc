@@ -1,5 +1,6 @@
 #include "inspection.h"
 #include "session.h"
+#include "preparation.h"
 #include <QApplication>
 #include <QFileDialog>
 #include <QDesktopServices>
@@ -15,8 +16,18 @@
 #include <QWidget>
 #include <QResizeEvent>
 #include <QPainter>
+#include <QCloseEvent>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QMessageBox>
+#include <QProgressBar>
+#include <QPointer>
+#include <QThread>
 #include <algorithm>
+#include <atomic>
 #include <cstdlib>
+#include <memory>
 #include <optional>
 
 class Artwork : public QWidget {
@@ -39,7 +50,24 @@ class ResponsiveWindow : public QWidget {
 public:
     QBoxLayout* layout = nullptr;
     QWidget* artwork = nullptr;
+    std::function<bool()> canClose;
+    std::function<void(const QString&)> importSource;
 protected:
+    void closeEvent(QCloseEvent* event) override {
+        if (canClose && !canClose()) event->ignore();
+        else QWidget::closeEvent(event);
+    }
+    void dragEnterEvent(QDragEnterEvent* event) override {
+        if (event->mimeData()->hasUrls() && event->mimeData()->urls().size() == 1 &&
+            event->mimeData()->urls().first().isLocalFile()) event->acceptProposedAction();
+    }
+    void dropEvent(QDropEvent* event) override {
+        if (importSource && event->mimeData()->hasUrls() && event->mimeData()->urls().size() == 1 &&
+            event->mimeData()->urls().first().isLocalFile()) {
+            importSource(event->mimeData()->urls().first().toLocalFile());
+            event->acceptProposedAction();
+        }
+    }
     void resizeEvent(QResizeEvent* event) override {
         QWidget::resizeEvent(event);
         const bool narrow = width() < 700;
@@ -59,6 +87,21 @@ int main(int argc, char** argv) {
     QSettings preferences("pt-pc", "pt-launcher");
     const QString lastBundle = preferences.value("lastBundle").toString();
     if (!lastBundle.isEmpty()) chosen = std::filesystem::path(lastBundle.toStdU32String());
+    auto applicationFolder = std::filesystem::path(QCoreApplication::applicationDirPath().toStdU32String());
+#ifdef _WIN32
+    const auto bundledRoot = applicationFolder;
+    const auto runtimeRelative = std::filesystem::path("windows/pt.exe");
+#else
+    const auto bundledRoot = applicationFolder.filename() == "libexec" ? applicationFolder.parent_path() : applicationFolder;
+    const auto runtimeRelative = std::filesystem::path("linux/pt");
+#endif
+    std::error_code pathError;
+    // A newly extracted preview should prepare its own bundle. Remember an
+    // explicitly opened bundle only for this particular portable launcher.
+    const auto bundleOwner = QString::fromStdU32String(bundledRoot.u32string());
+    if (std::filesystem::is_regular_file(bundledRoot / runtimeRelative, pathError) &&
+        (preferences.value("lastBundleOwner").toString() != bundleOwner || chosen.empty() ||
+         !std::filesystem::is_regular_file(chosen / runtimeRelative, pathError))) chosen = bundledRoot;
 #ifdef PT_LAUNCHER_TEST_BUILD
     QString testMode;
     if (argc == 5 && QString::fromLocal8Bit(argv[1]).startsWith("--test-") && QString::fromLocal8Bit(argv[3]) == "--test-supported-sha256") {
@@ -70,6 +113,7 @@ int main(int argc, char** argv) {
     const QString assets = QCoreApplication::applicationDirPath() + "/assets/";
     QFontDatabase::addApplicationFont(assets + "PirataOne-Regular.ttf");
     ResponsiveWindow window; window.setWindowTitle("P.T. Launcher"); window.resize(1000, 680);
+    window.setAcceptDrops(true);
     window.setStyleSheet("QWidget{background:#10271f;color:#e5e1d6;font:16px sans-serif} QPushButton{background:#294738;border:1px solid #688674;border-radius:7px;padding:11px;text-align:left} QPushButton:hover{background:#41634d} QPushButton:disabled{color:#9ba99d} QLabel#title{font:60px 'Pirata One'} QLabel#warning{color:#e8c495}");
     auto* layout = new QHBoxLayout(&window);
     window.layout = layout;
@@ -80,18 +124,26 @@ int main(int argc, char** argv) {
     auto* panel = new QWidget; auto* controls = new QVBoxLayout(panel); controls->setSpacing(14); controls->setContentsMargins(28,30,28,30);
     auto* title = new QLabel("P.T."); title->setObjectName("title"); controls->addWidget(title);
     controls->addWidget(new QLabel("A quiet place to return.")); controls->addStretch();
-    auto* warning = new QLabel("Choose a portable bundle in Game files."); warning->setObjectName("warning"); warning->setWordWrap(true); controls->addWidget(warning);
+    auto* warning = new QLabel("Choose your P.T. .pkg in Game files, or drop it here."); warning->setObjectName("warning"); warning->setWordWrap(true); controls->addWidget(warning);
     auto* play = new QPushButton("Play"); play->setObjectName("play"); play->setEnabled(false); controls->addWidget(play);
     auto* resume = new QPushButton("Return to game"); resume->setObjectName("returnToGame"); resume->hide(); controls->addWidget(resume);
     auto* retry = new QPushButton("Retry"); retry->hide(); controls->addWidget(retry);
     auto* logButton = new QPushButton("Open game log"); logButton->hide(); controls->addWidget(logButton);
     auto* vr = new QPushButton("Play in VR"); vr->setEnabled(false); controls->addWidget(vr);
     auto* settings = new QPushButton("Settings"); settings->setEnabled(false); controls->addWidget(settings);
-    auto* files = new QPushButton("Game files"); controls->addWidget(files);
+    auto* files = new QPushButton("Game files — choose .pkg"); controls->addWidget(files);
+    auto* folderFiles = new QPushButton("Import extracted game folder"); controls->addWidget(folderFiles);
+    auto* openBundle = new QPushButton("Open existing portable bundle"); controls->addWidget(openBundle);
+    auto* preparationBar = new QProgressBar; preparationBar->hide(); controls->addWidget(preparationBar);
+    auto* cancelPreparation = new QPushButton("Cancel preparation"); cancelPreparation->hide(); controls->addWidget(cancelPreparation);
     auto* updates = new QPushButton("Updates"); updates->setEnabled(false); controls->addWidget(updates);
     auto* details = new QLabel; details->setWordWrap(true); controls->addWidget(details);
+    bool preparing = false, closeAfterPreparation = false, preparationLog = false, recoveryBlocked = false;
+    auto cancelRequested = std::make_shared<std::atomic<bool>>(false);
+    QThread* preparationThread = nullptr;
+    QPointer<QMessageBox> cancelPrompt;
     auto refresh = [&] {
-        if (chosen.empty()) return;
+        if (chosen.empty() || preparing) return;
         auto session = pt::launcher::InspectSession(chosen);
         if (previousRunning && session.activity == pt::launcher::Activity::Stopped) {
             lastFailure = "Game process exited. Open the game log or retry Play.";
@@ -107,11 +159,12 @@ int main(int argc, char** argv) {
 #else
             inspection.linux_runtime.verified;
 #endif
-        play->setEnabled(session.activity == pt::launcher::Activity::Stopped && inspection.archives && runtime);
+        play->setEnabled(!recoveryBlocked && session.activity == pt::launcher::Activity::Stopped && inspection.archives && runtime);
         resume->setVisible(session.activity == pt::launcher::Activity::Running);
         if (session.activity == pt::launcher::Activity::Running) warning->setText("Game process active. Return to the existing session.");
         else if (session.activity == pt::launcher::Activity::Uncertain) warning->setText(session.error.isEmpty() ? "Game activity uncertain. Play is blocked." : session.error);
         else if (!lastFailure.isEmpty()) warning->setText(lastFailure);
+        else if (!inspection.archives) warning->setText("Add your P.T. .pkg in Game files, or drop it here. The launcher will prepare it for you.");
         else warning->setText(QString::fromStdString(inspection.error.empty() ?
             (runtime ? "" : inspection.linux_runtime.present || inspection.windows_runtime.present ?
               "Runtime unverified. Install a matching supported release to enable Play and Settings." :
@@ -125,14 +178,100 @@ int main(int argc, char** argv) {
             .arg(inspection.linux_runtime.verified ? "verified" : inspection.linux_runtime.present ? "unverified" : "missing")
             .arg(inspection.windows_runtime.verified ? "verified" : inspection.windows_runtime.present ? "unverified" : "missing"));
     };
+    auto confirmCancellation = [&](bool closing) {
+        if (!preparing) return;
+        if (cancelPrompt) { cancelPrompt->raise(); cancelPrompt->activateWindow(); return; }
+        auto* prompt = new QMessageBox(QMessageBox::Question, "Cancel game preparation?",
+            "Your original source and existing game files will be kept.", QMessageBox::NoButton, &window);
+        auto* keep = prompt->addButton("Keep preparing", QMessageBox::RejectRole);
+        auto* cancel = prompt->addButton(closing ? "Cancel and close" : "Cancel preparation", QMessageBox::DestructiveRole);
+        prompt->setDefaultButton(keep); prompt->setEscapeButton(keep);
+        prompt->setAttribute(Qt::WA_DeleteOnClose); cancelPrompt = prompt;
+        QObject::connect(prompt, &QMessageBox::finished, &window, [&, prompt, cancel, closing](int) {
+            if (preparing && prompt->clickedButton() == cancel) {
+                cancelRequested->store(true); closeAfterPreparation = closing;
+                cancelPreparation->setEnabled(false); warning->setText("Cancelling preparation…");
+            }
+        });
+        prompt->open();
+    };
+    std::function<void(const QString&, bool)> prepare;
+    prepare = [&](const QString& source, bool recoverOnly) {
+        if (preparing) { warning->setText("Game preparation is already running."); return; }
+        if (chosen.empty()) { warning->setText("Extract the portable preview first, then run its launcher."); return; }
+        preparing = true; cancelRequested->store(false); preparationLog = true;
+        logButton->setText("Open preparation log");
+        play->setEnabled(false); resume->hide(); retry->hide(); logButton->hide();
+        files->setEnabled(false); folderFiles->setEnabled(false); openBundle->setEnabled(false);
+        preparationBar->setRange(0, 0); preparationBar->show();
+        cancelPreparation->setEnabled(!recoverOnly); cancelPreparation->show();
+        warning->setText(recoverOnly ? "Recovering interrupted preparation…" : "Preparing your game…");
+        details->clear(); lastFailure.clear();
+        const auto bundle = chosen;
+        const auto input = std::filesystem::path(source.toStdU32String());
+        auto result = std::make_shared<pt::launcher::PreparationResult>();
+        preparationThread = QThread::create([&, bundle, input, result, recoverOnly, cancelRequested] {
+            if (recoverOnly) *result = pt::launcher::RecoverPreparation(bundle);
+            else *result = pt::launcher::PrepareGame(bundle, input, supported,
+                [cancelRequested] { return cancelRequested->load(); },
+                [&](const pt::launcher::PreparationProgress& progress) {
+                    QMetaObject::invokeMethod(&window, [&, progress, cancelRequested] {
+                        if (!preparing || cancelRequested->load()) return;
+                        warning->setText(progress.message);
+                        if (progress.total) {
+                            preparationBar->setRange(0, 1000);
+                            preparationBar->setValue(int(std::min(1.0, double(progress.done) / double(progress.total)) * 1000));
+                        } else preparationBar->setRange(0, 0);
+                    }, Qt::QueuedConnection);
+                });
+        });
+        QObject::connect(preparationThread, &QThread::finished, &window, [&, result, bundle, recoverOnly] {
+            preparing = false;
+            if (cancelPrompt) cancelPrompt->reject();
+            preparationBar->hide(); cancelPreparation->hide();
+            files->setEnabled(true); folderFiles->setEnabled(true); openBundle->setEnabled(true);
+            cachedInspection.reset(); previousRunning = false;
+            recoveryBlocked = pt::launcher::PreparationNeedsRecovery(bundle);
+            if (!result->error.isEmpty()) lastFailure = result->error;
+            else if (result->cancelled) lastFailure = "Preparation cancelled. Your source and existing game files were kept.";
+            else if (result->ready && !recoverOnly) lastFailure = "Your game is ready. Choose Play to start.";
+            if (!result->notes.isEmpty()) lastFailure += "\n" + result->notes.join('\n');
+            std::error_code logError;
+            if (!result->error.isEmpty() && std::filesystem::is_regular_file(bundle / ".pt-preparation.log", logError)) logButton->show();
+            preferences.setValue("lastBundle", QString::fromStdU32String(bundle.u32string()));
+            preferences.setValue("lastBundleOwner", bundleOwner);
+            preparationThread = nullptr;
+            refresh();
+            if (closeAfterPreparation) window.close();
+        });
+        QObject::connect(preparationThread, &QThread::finished, preparationThread, &QObject::deleteLater);
+        preparationThread->start();
+    };
+    window.canClose = [&] {
+        if (!preparing) return true;
+        confirmCancellation(true); return false;
+    };
+    window.importSource = [&](const QString& source) { prepare(source, false); };
     QObject::connect(files, &QPushButton::clicked, &window, [&] {
+        const QString source = QFileDialog::getOpenFileName(&window, "Choose your P.T. package", {}, "PS4 package (*.pkg);;All files (*)");
+        if (!source.isEmpty()) prepare(source, false);
+    });
+    QObject::connect(folderFiles, &QPushButton::clicked, &window, [&] {
+        const QString source = QFileDialog::getExistingDirectory(&window, "Choose your extracted P.T. game folder");
+        if (!source.isEmpty()) prepare(source, false);
+    });
+    QObject::connect(openBundle, &QPushButton::clicked, &window, [&] {
         QString folder = QFileDialog::getExistingDirectory(&window, "Choose portable bundle");
         if (folder.isEmpty()) return;
-        chosen = std::filesystem::path(folder.toStdU32String()); cachedInspection.reset(); lastFailure.clear(); previousRunning = false; refresh();
+        chosen = std::filesystem::path(folder.toStdU32String()); cachedInspection.reset(); lastFailure.clear(); previousRunning = false;
+        recoveryBlocked = pt::launcher::PreparationNeedsRecovery(chosen);
+        if (recoveryBlocked) prepare({}, true); else refresh();
         preferences.setValue("lastBundle", folder);
+        preferences.setValue("lastBundleOwner", bundleOwner);
     });
+    QObject::connect(cancelPreparation, &QPushButton::clicked, &window, [&] { confirmCancellation(false); });
     QObject::connect(play, &QPushButton::clicked, &window, [&] {
-        lastFailure.clear(); retry->hide(); logButton->hide();
+        lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
         auto result = pt::launcher::PlayFlat(chosen, supported);
         refresh();
         if (!result.error.isEmpty()) { lastFailure = result.error; warning->setText(result.error); retry->show(); logButton->show(); }
@@ -143,11 +282,19 @@ int main(int argc, char** argv) {
         if (!error.isEmpty()) warning->setText(error);
     });
     QObject::connect(logButton, &QPushButton::clicked, &window, [&] {
-        if (!chosen.empty()) QDesktopServices::openUrl(QUrl::fromLocalFile(pt::launcher::InspectSession(chosen).log));
+        if (!chosen.empty()) QDesktopServices::openUrl(QUrl::fromLocalFile(preparationLog ?
+            QString::fromStdU32String((chosen / ".pt-preparation.log").u32string()) : pt::launcher::InspectSession(chosen).log));
     });
     auto* monitor = new QTimer(&window); monitor->setInterval(1000);
     QObject::connect(monitor, &QTimer::timeout, &window, refresh); monitor->start();
-    refresh();
+    recoveryBlocked = !chosen.empty() && pt::launcher::PreparationNeedsRecovery(chosen);
+    const bool hasImportArgument = argc == 2 && !QCoreApplication::arguments().at(1).startsWith('-');
+    if (recoveryBlocked && !hasImportArgument) QTimer::singleShot(0, &window, [&] { prepare({}, true); });
+    else refresh();
+    if (hasImportArgument) {
+        const QString source = QCoreApplication::arguments().at(1);
+        if (!source.startsWith('-')) QTimer::singleShot(0, &window, [&, source] { prepare(source, false); });
+    }
 #ifdef PT_LAUNCHER_TEST_BUILD
     if (!chosen.empty()) QTimer::singleShot(0, &window, [&, testMode] {
         if (testMode == "--test-reconnect") {
