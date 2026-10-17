@@ -71,40 +71,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build clang-18 lld-18 g++-13 zlib1g-dev libvulkan-dev patchelf wine64 wine \
+          sudo apt-get install -y ninja-build g++-13 zlib1g-dev patchelf \
             libgl1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev \
             libx11-dev libxcursor-dev libxext-dev libxi-dev libxrandr-dev libxinerama-dev \
-            libxfixes-dev libxss-dev libxtst-dev libasound2-dev libpulse-dev libudev-dev \
-            libdbus-1-dev libdrm-dev libgbm-dev libpipewire-0.3-dev \
+            libxfixes-dev libxss-dev libxtst-dev libdbus-1-dev libdrm-dev libgbm-dev \
             libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             xvfb xauth xdotool openbox
-      - name: Linux Vulkan SDK
-        if: runner.os == 'Linux'
-        uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
-        with:
-          version: 1.4.357.0
-          cache: true
-      - name: Windows Vulkan SDK
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $installer = Join-Path $env:RUNNER_TEMP 'vulkan-sdk-1.4.357.0.exe'
-          $sdk = Join-Path $env:RUNNER_TEMP 'VulkanSDK\1.4.357.0'
-          Invoke-WebRequest 'https://sdk.lunarg.com/sdk/download/1.4.357.0/windows/vulkan_sdk.exe' -OutFile $installer
-          if ((Get-AuthenticodeSignature $installer).Status -ne 'Valid') {
-            throw 'The downloaded Vulkan SDK installer has no valid Authenticode signature'
-          }
-          Get-FileHash $installer -Algorithm SHA256 | Format-List
-          # 7-Zip extracts only the tools archive from this SDK. Use LunarG's
-          # supported copy-only installation to include headers and libraries.
-          & $installer --root $sdk --accept-licenses --default-answer --confirm-command install copy_only=1
-          if ($LASTEXITCODE -ne 0) { throw "Vulkan SDK installation failed: $LASTEXITCODE" }
-          foreach ($file in @('Include\vulkan\vulkan.h', 'Lib\vulkan-1.lib', 'Bin\glslc.exe')) {
-            if (!(Test-Path (Join-Path $sdk $file))) { throw "Missing Vulkan SDK file: $file" }
-          }
-          "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
-          "$sdk\Bin" >> $env:GITHUB_PATH
       - name: Install shared Qt 6.12.0
         env:
           PREVIEW_PLATFORM: ${{ matrix.platform }}
@@ -121,7 +94,7 @@ jobs:
           with open(os.environ['GITHUB_PATH'], 'a') as output:
               output.write(str(qt / 'bin') + '\n')
           PY
-      - name: Build and package the matching runtime and launcher
+      - name: Build launcher and package the pinned upstream runtime
         env:
           PREVIEW_PLATFORM: ${{ matrix.platform }}
           PREVIEW_VERSION: ${{ needs.metadata.outputs.version }}

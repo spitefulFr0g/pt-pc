@@ -1,4 +1,4 @@
-"""Build the real game first, then a launcher pinned to that exact executable."""
+"""Build a native launcher paired with the pinned upstream portable runtime."""
 
 import argparse
 import hashlib
@@ -10,7 +10,10 @@ import shutil
 import subprocess
 import sys
 
+from fetch_launcher_preview_runtime import RELEASE_SOURCE_REVISION
+
 REPO = Path(__file__).resolve().parents[2]
+ZLIB_REVISION = "da607da739fa6047df13e66a2af6b8bec7c2a498"  # zlib 1.3.2
 
 
 def main():
@@ -19,26 +22,18 @@ def main():
     parser.add_argument("--version", required=True)
     parser.add_argument("--work", type=Path, default=REPO / "build/launcher-preview")
     parser.add_argument("--out", type=Path, default=REPO / "dist/launcher-preview")
+    parser.add_argument("--runtime-archive", type=Path, help="Reuse a downloaded archive with the pinned checksum")
     parser.add_argument("--jobs", type=int, default=2)
     args = parser.parse_args()
     if platform.system() != {"windows": "Windows", "linux": "Linux"}[args.platform]:
-        parser.error("Build each platform natively on its corresponding runner")
-    if platform.machine().lower() not in ("amd64", "x86_64"):
-        parser.error("Preview bundles require an x86_64 build host")
-    if args.jobs < 1:
-        parser.error("--jobs must be positive")
+        parser.error("Build each launcher natively on its corresponding runner")
+    if platform.machine().lower() not in ("amd64", "x86_64") or args.jobs < 1:
+        parser.error("Use an x86_64 host and a positive --jobs count")
     work = args.work.resolve()
     evidence = work / "evidence"
     evidence.mkdir(parents=True, exist_ok=True)
-    runtime = work / "runtime"
-    launcher = work / "launcher"
-    stage = work / "launcher-stage"
+    launcher, stage, runtime = work / "launcher", work / "launcher-stage", work / "runtime-stage"
     env = os.environ.copy()
-    # The upstream Linux FSR shader compiler runs through Wine at build time only.
-    env.setdefault("WINEDEBUG", "-all")
-    env.setdefault("WINEPREFIX", str(work / "wine"))
-    env.setdefault("WINEARCH", "win64")
-
     with (evidence / "build.log").open("w", encoding="utf-8") as log:
         def run(*command):
             command = [str(part) for part in command]
@@ -53,66 +48,55 @@ def main():
                     raise subprocess.CalledProcessError(process.returncode, command)
 
         revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+        # A future engine upgrade must deliberately advance the paired runtime pin.
+        if subprocess.run(["git", "cat-file", "-e", RELEASE_SOURCE_REVISION + "^{commit}"],
+                          cwd=REPO, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+            run("git", "fetch", "--no-tags", "--depth=1", "https://github.com/LoreanXavier/pt-pc.git",
+                RELEASE_SOURCE_REVISION)
+        run("git", "diff", "--exit-code", RELEASE_SOURCE_REVISION, revision, "--", "src", "cmake", "CMakeLists.txt")
         (evidence / "environment.json").write_text(json.dumps({
-            "source_revision": revision, "platform": platform.platform(),
-            "python": sys.version, "qt_prefix": env.get("QT_ROOT"),
-            "vulkan_sdk": env.get("VULKAN_SDK"),
+            "launcher_revision": revision, "platform": platform.platform(), "python": sys.version,
+            "qt_prefix": env.get("QT_ROOT"), "runtime_release_source_revision": RELEASE_SOURCE_REVISION,
             "cmake": subprocess.check_output(["cmake", "--version"], text=True).strip(),
-            "glslc": subprocess.check_output(["glslc", "--version"], text=True).strip(),
         }, indent=2) + "\n", encoding="utf-8")
-        if args.platform == "linux":
-            fsr_tools = work / "host-tools/fsr"
-            run(sys.executable, REPO / "tools/ci/install_fsr_glslang.py", fsr_tools)
-            # AMD's Windows compiler invokes glslangValidator.exe through Wine.
-            # The Linux SDK's ELF tool cannot serve that child process.
-            wine_tools = "Z:" + str(fsr_tools).replace("/", "\\")
-            env["WINEPATH"] = wine_tools + (";" + env["WINEPATH"] if env.get("WINEPATH") else "")
-            # Initialize once before Ninja starts multiple shader compiler jobs.
-            run("wineboot", "--init")
-        configure = ["cmake", "-S", REPO, "-B", runtime, "-G", "Ninja",
-                     "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_CXX_SCAN_FOR_MODULES=OFF",
-                     "-DPT_UPSCALERS=ON", "-DPT_GAMEPLUS=ON"]
-        if args.platform == "windows":
-            configure += ["-DCMAKE_C_COMPILER=clang-cl", "-DCMAKE_CXX_COMPILER=clang-cl",
-                          "-DPT_REQUIRE_UPSCALERS=ON"]
-        else:
-            configure += ["-DCMAKE_C_COMPILER=clang-18", "-DCMAKE_CXX_COMPILER=clang++-18"]
-        run(*configure)
-        # pt's post-build operations stage the fonts, shaders and runtime libraries.
-        run("cmake", "--build", runtime, "--parallel", args.jobs, "--target", "pt", "pt_release")
-        executable = runtime / ("pt_release.exe" if args.platform == "windows" else "pt_release")
+        shutil.rmtree(runtime, ignore_errors=True)
+        fetch = [sys.executable, REPO / "tools/ci/fetch_launcher_preview_runtime.py",
+                 "--platform", args.platform, "--out", runtime]
+        if args.runtime_archive:
+            fetch += ["--archive", args.runtime_archive.resolve()]
+        run(*fetch)
+        executable = runtime / ("pt.exe" if args.platform == "windows" else "pt")
         with executable.open("rb") as binary:
             runtime_hash = hashlib.file_digest(binary, "sha256").hexdigest()
 
-        launcher_config = ["cmake", "-S", REPO / "launcher", "-B", launcher, "-G", "Ninja",
-                           "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX=" + str(stage),
-                           f"-DPT_SUPPORTED_{args.platform.upper()}_SHA256={runtime_hash}"]
+        configure = ["cmake", "-S", REPO / "launcher", "-B", launcher, "-G", "Ninja",
+                     "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX=" + str(stage),
+                     f"-DPT_SUPPORTED_{args.platform.upper()}_SHA256={runtime_hash}"]
         if args.platform == "windows":
-            # Qt's MSVC SDK uses the dynamic C runtime; build a matching private zlib.
-            zlib_build = work / "launcher-zlib"
-            zlib_install = work / "zlib-install"
-            run("cmake", "-S", runtime / "_deps/zlib-src", "-B", zlib_build, "-G", "Ninja",
-                "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX=" + str(zlib_install),
+            # Build Qt's zlib dependency with the same dynamic MSVC C runtime.
+            source, zlib_build, zlib_install = work / "zlib-source", work / "launcher-zlib", work / "zlib-install"
+            run("git", "init", source)
+            run("git", "-C", source, "fetch", "--depth=1", "https://github.com/madler/zlib.git", ZLIB_REVISION)
+            run("git", "-C", source, "checkout", "--detach", ZLIB_REVISION)
+            run("cmake", "-S", source, "-B", zlib_build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_C_COMPILER=cl", "-DCMAKE_INSTALL_PREFIX=" + str(zlib_install),
                 "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL", "-DZLIB_BUILD_SHARED=OFF",
                 "-DZLIB_BUILD_STATIC=ON", "-DZLIB_BUILD_TESTING=OFF", "-DZLIB_BUILD_EXAMPLES=OFF",
                 "-DZLIB_INSTALL=ON")
             run("cmake", "--build", zlib_build, "--parallel", args.jobs)
             run("cmake", "--install", zlib_build)
-            launcher_config += ["-DCMAKE_C_COMPILER=cl", "-DCMAKE_CXX_COMPILER=cl",
-                                "-DZLIB_ROOT=" + str(zlib_install), "-DZLIB_USE_STATIC_LIBS=ON"]
+            configure += ["-DCMAKE_CXX_COMPILER=cl", "-DZLIB_ROOT=" + str(zlib_install), "-DZLIB_USE_STATIC_LIBS=ON"]
         else:
-            launcher_config += ["-DCMAKE_CXX_COMPILER=g++-13"]
-        run(*launcher_config)
+            configure += ["-DCMAKE_CXX_COMPILER=g++-13"]
+        run(*configure)
         run("cmake", "--build", launcher, "--parallel", args.jobs)
-        # Existing inspection tests exercise the public operation through QApplication.
         env["QT_QPA_PLATFORM"] = "offscreen"
-        test_pattern = "^launcher_inspection$" if args.platform == "windows" else "launcher_"
-        run("ctest", "--test-dir", launcher, "--output-on-failure", "-R", test_pattern)
+        run("ctest", "--test-dir", launcher, "--output-on-failure", "--timeout", "90", "-R", "launcher_")
         shutil.rmtree(stage, ignore_errors=True)
         run("cmake", "--install", launcher)
         run(sys.executable, REPO / "tools/ci/package_launcher_preview.py",
             "--platform", args.platform, "--version", args.version, "--revision", revision,
-            "--runtime-build", runtime, "--launcher-stage", stage, "--out", args.out.resolve())
+            "--runtime-stage", runtime, "--launcher-stage", stage, "--out", args.out.resolve())
 
 
 if __name__ == "__main__":

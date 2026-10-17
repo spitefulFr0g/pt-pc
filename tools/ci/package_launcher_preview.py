@@ -151,7 +151,7 @@ def windows_deploy(root, qt):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--platform", choices=("linux", "windows"), required=True)
-    parser.add_argument("--runtime-build", type=Path, required=True)
+    parser.add_argument("--runtime-stage", type=Path, required=True)
     launcher = parser.add_mutually_exclusive_group(required=True)
     launcher.add_argument("--launcher-stage", type=Path)
     launcher.add_argument("--launcher-build", type=Path)
@@ -162,16 +162,18 @@ def main():
     args = parser.parse_args()
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", args.version), "invalid version")
     require(re.fullmatch(r"[0-9a-fA-F]{7,40}", args.revision), "revision must be a git hash")
-    runtime_build = args.runtime_build.resolve()
+    runtime_stage = args.runtime_stage.resolve()
     launcher_build = args.launcher_build.resolve() if args.launcher_build else None
     stage = args.launcher_stage.resolve() if args.launcher_stage else None
     environment_qt = os.environ.get("QT_ROOT") or os.environ.get("CMAKE_PREFIX_PATH", "").split(os.pathsep)[0]
     require(launcher_build or args.qt_root or environment_qt,
             "--launcher-stage requires --qt-root, QT_ROOT, or CMAKE_PREFIX_PATH")
     qt = args.qt_root.resolve() if args.qt_root else qt_root(launcher_build) if launcher_build else Path(environment_qt).resolve()
-    executable = runtime_build / ("pt_release.exe" if args.platform == "windows" else "pt_release")
-    require(executable.is_file(), f"missing release runtime {executable}")
+    executable = runtime_stage / ("pt.exe" if args.platform == "windows" else "pt")
+    require(executable.is_file(), f"missing staged runtime {executable}")
     runtime_sha = digest(executable)
+    origin = json.loads((runtime_stage / "runtime-origin.json").read_text(encoding="utf-8"))
+    require(origin["executable_sha256"] == runtime_sha, "staged runtime differs from upstream origin record")
     name = f"pt-launcher-preview-{args.version}-{args.platform}"
     suffix = ".zip" if args.platform == "windows" else ".tar.gz"
     args.out.mkdir(parents=True, exist_ok=True)
@@ -193,18 +195,12 @@ def main():
         configured = dict(line.split("=", 1) for line in hashes.read_text(encoding="ascii").splitlines() if "=" in line)
         require(configured.get(args.platform) == runtime_sha,
                 f"launcher {args.platform} supported hash does not match {executable}")
-        package_out = scratch / "runtime"
-        no_game = scratch / "no-game-files"
-        subprocess.run([sys.executable, str(REPO / "tools/package.py"), "--build", str(runtime_build),
-                        "--exe", str(executable), "--out", str(package_out), "--game", str(no_game)], check=True)
-        runtime_roots = [p for p in package_out.iterdir() if p.is_dir()]
-        require(len(runtime_roots) == 1, "runtime package did not produce exactly one folder")
         destination = root / args.platform
-        shutil.copytree(runtime_roots[0], destination)
+        shutil.copytree(runtime_stage, destination)
         for stale in ("pt-updater", "pt-updater.exe", "pt-files.json"):
             (destination / stale).unlink(missing_ok=True)
         require(digest(destination / ("pt.exe" if args.platform == "windows" else "pt")) == runtime_sha,
-                "packaged runtime differs from compiled release runtime")
+                "packaged runtime differs from pinned upstream runtime")
         launcher_exe = root / ("pt-launcher.exe" if args.platform == "windows" else "libexec/pt-launcher")
         require(launcher_exe.is_file(), f"missing staged launcher {launcher_exe}")
         require(runtime_sha.encode("ascii") in launcher_exe.read_bytes(),
@@ -236,7 +232,8 @@ def main():
             encoding="utf-8")
         (root / "PREVIEW-NOTICES.md").write_text(
             f"# Unsigned portable preview\n\n"
-            f"This test bundle contains the pt-pc launcher and game runtime from revision {args.revision}. "
+            f"This test bundle contains the pt-pc launcher from revision {args.revision} "
+            "and the pinned upstream v1.0.5 runtime described in the platform's runtime-origin.json. "
             "It is unsigned and has no secure updater or automatic preview update path. "
             "Game archives are supplied by the player.\n\n"
             f"Qt {qt_version(qt)} shared libraries and plugins are included under the "
@@ -264,6 +261,7 @@ def main():
                  for p in sorted(root.rglob("*")) if p.is_file()]
         inventory = {"format": 1, "kind": "unsigned-portable-preview", "platform": args.platform,
                      "version": args.version, "revision": args.revision, "qt_version": qt_version(qt),
+                     "runtime_origin": origin,
                      "runtime_source_sha256": runtime_sha, "supported_runtime_sha256": runtime_sha, "files": files}
         (root / "preview-inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
         pending_inventory = scratch / external_inventory.name

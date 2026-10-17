@@ -2,28 +2,51 @@
 
 ## Unsigned paired preview bundles
 
-The manual preview workflow builds the normal game and `pt_release` runtime first,
-then builds the launcher with the SHA-256 of that exact `pt_release` executable in
-`PT_SUPPORTED_LINUX_SHA256` or `PT_SUPPORTED_WINDOWS_SHA256`. The launcher build
-uses shared Qt 6.12.0. The full Linux preview build requires CMake 3.31.10,
-Clang 18 (for the FSR SDK's MSVC extensions), GCC/G++ 13's C++ library and
-launcher compiler, and `libvulkan-dev` in the Ubuntu 24.04 build environment; the
-standalone launcher still configures with CMake 3.28. Package one platform at
-a time:
+The manual workflow builds the current launcher natively with shared Qt 6.12.0
+and pairs it with the published upstream v1.0.5 portable runtime. The Windows
+and Linux runtime ZIPs have fixed SHA-256 pins in
+`tools/ci/fetch_launcher_preview_runtime.py`; replacement assets fail verification.
+CI checks that the checkout's game code still matches the upstream release's
+source tag before pairing it. Each launcher embeds the actual runtime executable's
+hash through `PT_SUPPORTED_LINUX_SHA256` or `PT_SUPPORTED_WINDOWS_SHA256`.
+
+The source snapshot's Windows game CMake references two unpublished files,
+`tools/dx12/spirv_to_hlsl.cpp` and `tests/unicode_paths_test.rc`. These preview
+jobs therefore reuse the released runtime on both platforms. `runtime-origin.json`
+records the release, release source revision, original archive folder/build label,
+download URL, archive checksum, and executable checksum. This records the
+upstream release's declared provenance without asserting that its archive's
+build label is a published source commit.
+
+Run **Launcher preview** manually on the `integration/launcher` branch, choosing
+an unused preview version. For example:
 
 ```sh
-cmake --install build/launcher --prefix build/launcher-stage
-export QT_ROOT=/path/to/Qt/6.12.0/gcc_64
-python3 tools/ci/package_launcher_preview.py --platform linux \
-  --runtime-build build/runtime --launcher-stage build/launcher-stage \
-  --out dist --version 0.0.0-preview.1 \
-  --revision "$(git rev-parse HEAD)"
-python3 tools/ci/smoke_launcher_preview.py \
-  --artifacts dist --platform linux --evidence build/preview-smoke
+gh workflow run launcher-preview.yml --repo spitefulFr0g/pt-pc \
+  --ref integration/launcher -f version=0.1.0-preview.2 -f create_draft=true
 ```
 
-`--launcher-build build/launcher` can replace `--launcher-stage` and installs
-into a temporary stage; it reads the Qt prefix from that build's CMake cache.
+Both platform jobs must build and smoke-check successfully before CI creates an
+unpublished draft prerelease. Download and test its Windows ZIP and Linux tar.gz,
+then publish the draft when ready. No signing secret is needed. Build evidence
+and temporary Actions artifacts are retained for 14 days; draft release assets
+remain attached to the release. The launcher preview tag does not trigger the
+separate macOS game packaging workflow.
+
+For a local build with the same dependencies and Qt prefix as CI:
+
+```sh
+export QT_ROOT=/path/to/Qt/6.12.0/gcc_64
+export CMAKE_PREFIX_PATH="$QT_ROOT"
+python3 tools/ci/build_launcher_preview.py --platform linux \
+  --version 0.1.0-preview.2
+python3 tools/ci/smoke_launcher_preview.py \
+  --artifacts dist/launcher-preview --platform linux --evidence build/preview-smoke
+```
+
+The lower-level package command accepts `--runtime-stage`, `--launcher-stage`,
+`--platform`, `--version`, `--revision`, and `--out`. `--launcher-build` can replace
+`--launcher-stage` and installs into a temporary stage using that build's Qt prefix.
 Windows uses `--platform windows`, `pt_release.exe`, a ZIP archive, and Qt's
 `windeployqt` with compiler runtime deployment. Linux requires `patchelf`,
 `dpkg-query`, `ldd`, and Qt's xcb and Wayland plugins. The Linux smoke check
@@ -38,9 +61,9 @@ The archive has `windows/pt.exe` or `linux/pt`, the launcher at its root
 (`pt-launcher.exe` on Windows or a `pt-launcher` entry script on Linux), Qt
 libraries/plugins, assets, licenses, and `preview-inventory.json`. The Linux
 script changes no global Qt or library environment; the game launched through
-PlayFlat inherits the normal system environment. The game runtime is staged by
-`tools/package.py` with no game files. The preview script removes the runtime's
-updater and stale runtime file list. These bundles are unsigned manual tests;
+PlayFlat inherits the normal system environment. The runtime staging command
+removes the upstream updater, stale runtime file list, and loop preview images
+captured from the original game. No game archives are included. These bundles are unsigned manual tests;
 PlayFlat passes `--no-update-check`, and upstream in-game updating is
 unsupported for this mixed bundle. Direct runtime launches should also pass
 `--no-update-check`. The archive includes `README-preview.md`, the project

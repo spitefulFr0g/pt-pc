@@ -75,6 +75,9 @@ def check(root, platform):
     require(runtime.is_file() and launcher.is_file(), "runtime or launcher missing")
     require(digest(runtime) == inventory["runtime_source_sha256"] == inventory["supported_runtime_sha256"],
             "runtime hash differs from source/supported hash")
+    origin = json.loads((root / platform / "runtime-origin.json").read_text(encoding="utf-8"))
+    require(origin == inventory["runtime_origin"] and origin["executable_sha256"] == digest(runtime),
+            "upstream runtime origin differs from the inventory or executable")
     configured = dict(line.split("=", 1) for line in (root / "supported-runtime-sha256.txt").read_text(encoding="ascii").splitlines()
                       if "=" in line)
     require(configured.get(platform) == inventory["supported_runtime_sha256"],
@@ -91,6 +94,7 @@ def check(root, platform):
             "launcher assets missing")
     require((root / platform / "licenses").is_dir(), "runtime license directory missing")
     if platform == "linux":
+        require(os.access(runtime, os.X_OK), "Linux game runtime is not executable")
         for name in ("libqxcb.so", "libqwayland.so"):
             require((root / "libexec/plugins/platforms" / name).is_file(), f"missing Qt platform plugin {name}")
         require((root / "libexec/qt.conf").is_file() and (root / "lib").is_dir(), "private Qt configuration missing")
