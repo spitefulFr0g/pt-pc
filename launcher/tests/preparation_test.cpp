@@ -114,5 +114,31 @@ int main() {
         assert(!fs::exists(f.root / "CUSA01127/chunk1.psarc"));
         assert(get(f.source / "chunk1.psarc") == "PSARsynthetic archive data");
     }
+    if (const char* pkg = std::getenv("PT_LAUNCHER_TEST_PKG")) {
+        assert(std::getenv("PT_LAUNCHER_STAGED_EXTRACTOR"));
+        Fixture f;
+        auto sourceBytes = get(fs::u8path(pkg));
+        auto result = PrepareGame(f.root, fs::u8path(pkg), f.supported);
+        if (!result.ready) std::cerr << result.error.toStdString() << "\n";
+        assert(result.ready && result.error.isEmpty());
+        assert(get(f.root / "CUSA01127/chunk1.psarc").startsWith("PSAR"));
+        assert(get(f.root / "CUSA01127/texture.qar").size() == 0x40);
+        assert(get(fs::u8path(pkg)) == sourceBytes);
+        assert(get(f.root / "CUSA01127/player-save.bin") == "player data");
+        assert(get(f.root / "unowned bundle note.txt") == "unowned");
+        assert(!PreparationNeedsRecovery(f.root));
+    }
+#ifndef _WIN32
+    {
+        Fixture f;
+        const auto alias = f.root.parent_path() / "bundle escape alias";
+        fs::create_directory_symlink(f.root, alias);
+        auto result = PrepareGame(alias, f.source, f.supported);
+        assert(!result.ready && result.error.contains("Linked preparation path is unsafe"));
+        assert(!fs::exists(alias / ".pt-preparation.json"));
+        assert(get(f.root / "CUSA01127/player-save.bin") == "player data");
+        assert(get(f.source / "chunk1.psarc") == "PSARsynthetic archive data");
+    }
+#endif
     std::cout << "preparation public-operation cases passed\n";
 }
