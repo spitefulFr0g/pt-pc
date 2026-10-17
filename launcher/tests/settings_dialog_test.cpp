@@ -88,6 +88,7 @@ int main(int argc,char** argv){
         replaced.findChild<QSpinBox*>("displayWidth")->setValue(1800);
         replaced.findChild<QPushButton*>("settingsApply")->click();
         assert(replaced.statusText().contains("Runtime unverified"));
+        assert(!replaced.statusText().contains("Game activity"));
         assert(get(ini)==before);
         SettingsRuntimes(root);
     }

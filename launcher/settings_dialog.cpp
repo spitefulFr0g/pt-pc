@@ -90,7 +90,7 @@ void SettingsDialog::apply() {
                 base_=newer; message_="Newer settings loaded as the base. Apply again to reconcile your edited values."; }
             else message_=newer.error;
             } else reload();
-    } else if (result.status==ApplyStatus::Blocked) message_="Game activity blocks settings writes. " + result.error;
+    } else if (result.status==ApplyStatus::Blocked) message_=result.error;
     status_->setText(message_);
 }
 bool SettingsDialog::confirmDiscard() {
