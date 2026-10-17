@@ -79,7 +79,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build g++-13 zlib1g-dev patchelf \
-            libgl1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev \
+            libvulkan-dev glslc libgl1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev \
             libx11-dev libxcursor-dev libxext-dev libxi-dev libxrandr-dev libxinerama-dev \
             libxfixes-dev libxss-dev libxtst-dev libdbus-1-dev libdrm-dev libgbm-dev \
             libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
@@ -91,6 +91,12 @@ jobs:
         with:
           path: ${{ runner.temp }}/qt
           key: launcher-qt-${{ runner.os }}-6.12.0-${{ hashFiles('tools/ci/install_launcher_preview_qt.py') }}
+      - name: Cache Linux game dependencies
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: build/launcher-preview/game/_deps
+          key: launcher-linux-game-${{ runner.os }}-${{ hashFiles('cmake/**', 'CMakeLists.txt') }}
       - name: Cache checksum-verified upstream archive
         uses: actions/cache@v4
         with:

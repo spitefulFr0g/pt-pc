@@ -22,7 +22,7 @@ When preparation succeeds, choose **Play**.
 ## Unsigned paired preview bundles
 
 The pull-request and manual workflow builds the current launcher natively with shared Qt 6.12.0
-and pairs it with the published upstream v1.0.5 portable runtime. The Windows
+and pairs it with the pinned upstream v1.0.5 assets and Windows runtime. Linux rebuilds the unchanged engine source with `PT_OPENXR=ON` and `PT_UPSCALERS=OFF`, staging the matching shaders, fonts, voice libraries/models, OpenXR loader and notices. The Windows
 and Linux runtime ZIPs have fixed SHA-256 pins in
 `tools/ci/fetch_launcher_preview_runtime.py`; replacement assets fail verification.
 CI verifies the downloaded runtime against its fixed archive SHA-256 pin before
@@ -33,7 +33,7 @@ revision. Each launcher embeds the actual runtime executable's hash through
 
 The source snapshot's Windows game CMake references two unpublished files,
 `tools/dx12/spirv_to_hlsl.cpp` and `tests/unicode_paths_test.rc`. These preview
-jobs therefore reuse the released runtime on both platforms. `runtime-origin.json`
+jobs therefore reuse the released Windows runtime; the supported Linux build needs none of those Windows-only files. `runtime-origin.json`
 records the release, release source revision, original archive folder/build label,
 download URL, archive checksum, and executable checksum. This records the
 upstream release's declared provenance without asserting that its archive's
@@ -68,6 +68,8 @@ python3 tools/ci/smoke_launcher_preview.py \
   --artifacts dist/launcher-preview --platform linux --evidence build/preview-smoke
 ```
 
+Linux CI targets Ubuntu 24.04 x86_64 (GCC 13); the controlled loader build was checked in an Ubuntu 24.04 container. A desktop session, compatible Vulkan graphics driver, and a host OpenXR runtime with `XR_KHR_vulkan_enable2` are required for VR. No system .NET/Qt SDK or global loader installation is needed. Native extracted desktop startup is checked separately by the package gate; physical gameplay/headset presentation remains unverified. See `docs/vr.md` for the loader contract.
+
 The lower-level package command accepts `--runtime-stage`, `--launcher-stage`,
 `--platform`, `--version`, `--revision`, and `--out`. `--launcher-build` can replace
 `--launcher-stage` and installs into a temporary stage using that build's Qt prefix.
@@ -84,8 +86,7 @@ does not embed the exact runtime hash.
 The archive has `windows/pt.exe` or `linux/pt`, the launcher at its root
 (`pt-launcher.exe` on Windows or a `pt-launcher` entry script on Linux), Qt
 libraries/plugins, assets, licenses, and `preview-inventory.json`. The Linux
-script changes no global Qt or library environment; the game launched through
-PlayFlat inherits the normal system environment. The runtime staging command
+script changes no global Qt or library environment. Game launches remove inherited `LD_LIBRARY_PATH` and `LD_PRELOAD`, retain host OpenXR registration, and use bundle-local `$ORIGIN` libraries. The runtime staging command
 removes the upstream updater, stale runtime file list, and loop preview images
 captured from the original game. No game archives are included. These bundles are unsigned manual tests;
 PlayFlat passes `--no-update-check`, and upstream in-game updating is
