@@ -26,21 +26,35 @@ int main(int argc, char** argv) {
     pt::launcher::BundleInspection bundle;
     bundle.root = root;
     bundle.archives = true;
-    bundle.linux_runtime.present = true;
-    bundle.linux_runtime.verified = true;
-    bundle.linux_runtime.supports_vr = true;
+#ifdef _WIN32
+    auto& matchingRuntime = bundle.windows_runtime;
+#else
+    auto& matchingRuntime = bundle.linux_runtime;
+#endif
+    matchingRuntime.present = true;
+    matchingRuntime.verified = true;
+    matchingRuntime.supports_vr = true;
 
     auto flat = pt::launcher::CheckReadiness(bundle, pt::launcher::LaunchMode::Flat);
     assert(flat.state == pt::launcher::ReadinessState::Ready);
     auto unsupportedBundle = bundle;
-    unsupportedBundle.linux_runtime.verified = false;
-    unsupportedBundle.linux_runtime.present = true;
+#ifdef _WIN32
+    auto& unsupportedRuntime = unsupportedBundle.windows_runtime;
+#else
+    auto& unsupportedRuntime = unsupportedBundle.linux_runtime;
+#endif
+    unsupportedRuntime.verified = false;
+    unsupportedRuntime.present = true;
     assert(pt::launcher::CheckReadiness(unsupportedBundle, pt::launcher::LaunchMode::Flat).state == pt::launcher::ReadinessState::Unknown);
     assert(pt::launcher::CheckReadiness(unsupportedBundle, pt::launcher::LaunchMode::VR).state == pt::launcher::ReadinessState::Unknown);
-    unsupportedBundle.linux_runtime.present = false;
+    unsupportedRuntime.present = false;
     assert(pt::launcher::CheckReadiness(unsupportedBundle, pt::launcher::LaunchMode::VR).state == pt::launcher::ReadinessState::Blocked);
     unsupportedBundle = bundle;
+#ifdef _WIN32
+    unsupportedBundle.windows_runtime.supports_vr = false;
+#else
     unsupportedBundle.linux_runtime.supports_vr = false;
+#endif
     assert(pt::launcher::CheckReadiness(unsupportedBundle, pt::launcher::LaunchMode::VR).state == pt::launcher::ReadinessState::Blocked);
     assert(pt::launcher::CheckReadiness(unsupportedBundle, pt::launcher::LaunchMode::Flat).state == pt::launcher::ReadinessState::Ready);
 

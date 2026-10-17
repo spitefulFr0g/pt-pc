@@ -235,12 +235,12 @@ int main(int argc, char** argv) {
     fs::remove(root/"windows/data/pt.ini");
     put(root/"windows/data/pt.ini","[display]\nwidth=1280\nheight=720\nfullscreen=0\n");
     windows=pt::launcher::ReadDisplaySettings(root, pt::launcher::Platform::Windows, supported);
+#ifdef __linux__
     const auto dataDirectory=root/"windows/data";
     const auto oldPermissions=fs::status(dataDirectory).permissions();
     fs::permissions(dataDirectory,fs::perms::owner_read|fs::perms::owner_exec|
         fs::perms::group_read|fs::perms::group_exec|fs::perms::others_read|fs::perms::others_exec,fs::perm_options::replace);
     edit={};edit.width=1440;
-#ifdef __linux__
     const bool rootHarness=geteuid()==0;
     if (rootHarness) {
         // Keep the bundle guard and read path accessible; deny only the save directory.
@@ -248,16 +248,12 @@ int main(int argc, char** argv) {
         fs::permissions(root,fs::perms::all,fs::perm_options::replace);
         assert(seteuid(65534)==0);
     }
-#endif
     saved=pt::launcher::ApplyDisplaySettings(root, pt::launcher::Platform::Windows, supported,windows,edit);
-#ifdef __linux__
     if (rootHarness) assert(seteuid(0)==0);
-#endif
     assert(saved.status==pt::launcher::ApplyStatus::Failed);
     assert(saved.error.contains("atomically save"));
     assert(get(windowsIni)=="[display]\nwidth=1280\nheight=720\nfullscreen=0\n");
     fs::permissions(dataDirectory,oldPermissions,fs::perm_options::replace);
-#ifdef __linux__
     const auto outside=root/"outside";
     put(outside/"pt.ini","[display]\nwidth=1280\n");
     fs::remove_all(dataDirectory);
