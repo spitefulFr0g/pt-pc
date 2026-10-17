@@ -17,7 +17,8 @@ on:
     paths:
       - '.github/workflows/launcher-preview.yml'
       - 'launcher/**'
-      - 'tools/ci/*launcher_preview.py'
+      - 'tools/ci/*launcher_preview*.py'
+      - 'tools/ci/install_fsr_glslang.py'
 
 permissions:
   contents: read
@@ -54,13 +55,9 @@ jobs:
         include:
           - platform: windows
             runner: windows-2022
-            qt_host: windows
-            qt_arch: win64_msvc2022_64
             qt_folder: msvc2022_64
           - platform: linux
             runner: ubuntu-24.04
-            qt_host: linux
-            qt_arch: linux_gcc_64
             qt_folder: gcc_64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
@@ -98,12 +95,11 @@ jobs:
           cache: true
       - name: Install shared Qt 6.12.0
         env:
-          QT_HOST: ${{ matrix.qt_host }}
-          QT_ARCH: ${{ matrix.qt_arch }}
+          PREVIEW_PLATFORM: ${{ matrix.platform }}
           QT_FOLDER: ${{ matrix.qt_folder }}
         run: |
           python -m pip install cmake==3.31.10 aqtinstall==3.3.0
-          python -m aqt install-qt "$QT_HOST" desktop 6.12.0 "$QT_ARCH" -O "$RUNNER_TEMP/qt"
+          python tools/ci/install_launcher_preview_qt.py --platform "$PREVIEW_PLATFORM" --output "$RUNNER_TEMP/qt"
           python - <<'PY'
           import os
           from pathlib import Path

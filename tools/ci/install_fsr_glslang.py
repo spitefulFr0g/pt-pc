@@ -33,6 +33,7 @@ def main() -> None:
     args.destination.mkdir(parents=True, exist_ok=True)
     output = args.destination / "glslangValidator.exe"
     output.write_bytes(executable)
+    print(f"Verified {URL} SHA-256 {SHA256}")
     print(output.resolve())
 
 

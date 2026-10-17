@@ -37,6 +37,7 @@ def main():
     # The upstream Linux FSR shader compiler runs through Wine at build time only.
     env.setdefault("WINEDEBUG", "-all")
     env.setdefault("WINEPREFIX", str(work / "wine"))
+    env.setdefault("WINEARCH", "win64")
 
     with (evidence / "build.log").open("w", encoding="utf-8") as log:
         def run(*command):
@@ -59,6 +60,15 @@ def main():
             "cmake": subprocess.check_output(["cmake", "--version"], text=True).strip(),
             "glslc": subprocess.check_output(["glslc", "--version"], text=True).strip(),
         }, indent=2) + "\n", encoding="utf-8")
+        if args.platform == "linux":
+            fsr_tools = work / "host-tools/fsr"
+            run(sys.executable, REPO / "tools/ci/install_fsr_glslang.py", fsr_tools)
+            # AMD's Windows compiler invokes glslangValidator.exe through Wine.
+            # The Linux SDK's ELF tool cannot serve that child process.
+            wine_tools = "Z:" + str(fsr_tools).replace("/", "\\")
+            env["WINEPATH"] = wine_tools + (";" + env["WINEPATH"] if env.get("WINEPATH") else "")
+            # Initialize once before Ninja starts multiple shader compiler jobs.
+            run("wineboot", "--init")
         configure = ["cmake", "-S", REPO, "-B", runtime, "-G", "Ninja",
                      "-DCMAKE_BUILD_TYPE=Release", "-DPT_UPSCALERS=ON", "-DPT_GAMEPLUS=ON"]
         if args.platform == "windows":
