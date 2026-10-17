@@ -12,7 +12,7 @@ Candidate: `49108474da40867518daf3d88619d9a8d68b8f9d`, merged into the already b
 
 Predicate/row replays were temporary local edits, restored before committing. They exercise real operations/widgets, not linkage failures or mocked internals. The original candidate's prior 9/9 was insufficient; its earlier missing-symbol/test-expectation failures are not counted as behavioral red here.
 
-The first full repaired run after merging #6 also revealed an overly strict new assertion: it expected an unedited comment to remain adjacent to a section header even though missing deliberate keys must be inserted there. The assertion was corrected to verify each unedited line's exact bytes independently. The rebuilt suite passed 9/9 in 9.85s. Final wrapper result is saved alongside this file.
+The first full repaired run after merging #6 also revealed an overly strict new assertion: it expected an unedited comment to remain adjacent to a section header even though missing deliberate keys must be inserted there. The assertion was corrected to verify each unedited line's exact bytes independently. The rebuilt suite passed 9/9 in 9.85s. Final ticket wrapper at source commit `809652b` exited 0: 9/9 passed in 10.09s, including the final game-exit Custom check. See `ctest.log`, `issue8-result.txt` and `source-commit.txt`.
 
 ## Environment and limits
 
