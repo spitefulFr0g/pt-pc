@@ -35,6 +35,19 @@ static QString logPath(const fs::path& root) {
     return qpath(root / "linux" / "data" / "pt.log");
 #endif
 }
+QString KnownVrFailure(const QString& log) {
+    QFile file(log);
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    // Bound work on the GUI thread even when a runtime produces a very large log.
+    const QByteArray bytes = file.read(256 * 1024);
+    const QByteArray marker("vr: off for this run:");
+    const auto start = bytes.indexOf(marker);
+    if (start < 0) return {};
+    const auto end = bytes.indexOf('\n', start);
+    return "VR unavailable; the runtime reported flat fallback. " +
+        QString::fromUtf8(bytes.mid(start, end < 0 ? -1 : end - start)).left(1000) +
+        " Open the game log for details.";
+}
 SessionState InspectSession(const fs::path& bundle) {
     const fs::path root = bundleAbsolute(bundle), target = program(root);
     SessionState result; result.bundle = root; result.log = logPath(root);

@@ -114,6 +114,18 @@ int main() {
         assert(!fs::exists(f.root / "CUSA01127/chunk1.psarc"));
         assert(get(f.source / "chunk1.psarc") == "PSARsynthetic archive data");
     }
+    if (const char* pkg = std::getenv("PT_LAUNCHER_TEST_INVALID_PKG")) {
+        assert(std::getenv("PT_LAUNCHER_STAGED_EXTRACTOR"));
+        Fixture f;
+        const auto bytes = get(fs::u8path(pkg));
+        auto result = PrepareGame(f.root, fs::u8path(pkg), f.supported);
+        assert(!result.ready && !result.error.isEmpty());
+        assert(get(fs::u8path(pkg)) == bytes);
+        assert(get(f.root / "CUSA01127/player-save.bin") == "player data");
+        assert(get(f.root / "unowned bundle note.txt") == "unowned");
+        assert(!fs::exists(f.root / "CUSA01127/chunk1.psarc"));
+        assert(!PreparationNeedsRecovery(f.root));
+    }
     if (const char* pkg = std::getenv("PT_LAUNCHER_TEST_PKG")) {
         assert(std::getenv("PT_LAUNCHER_STAGED_EXTRACTOR"));
         Fixture f;

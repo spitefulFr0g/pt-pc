@@ -4,7 +4,7 @@
 
 Extract the portable preview and run `pt-launcher.exe` on Windows or
 `./pt-launcher` on Linux. The application automatically finds its bundled
-runtime. Choose **Game files — choose .pkg**, drop a local package onto the
+runtime. Choose **Choose .pkg and prepare**, drop a local package onto the
 window, or pass its path as the launcher's sole command-line argument. Use
 **Import extracted game folder** for an already decrypted dump, including its
 `CUSA01127` folder. **Open existing portable bundle** switches to another
@@ -344,3 +344,16 @@ artifact hashes in the specified directory. Python 3 is supplied by that build
 image. Supervisor tests use real offscreen Qt GUI processes, local IPC and shell
 game fixtures, with no game data, account, signing secrets or device. These are
 source-build lifecycle checks, not packaged target/compositor or Steam coverage.
+
+### Scoped desktop acceptance (#11)
+
+`launcher/run-acceptance.sh <evidence-directory>` builds the launcher and runs
+inspection, readiness, session, preparation, process/cancellation and existing
+settings safety checks. Controller navigation, window-focus and Gaming Mode
+supervision tests remain in CTest but are outside this default release gate.
+Desktop use does not activate controller polling; developers can opt in with
+`PT_LAUNCHER_CONTROLLER=1`. The native package dialog and existing extracted
+folder/bundle adoption remain available. VR launch reports an unverified
+headset outcome and recognizes only the runtime's explicit `vr: off for this
+run:` fallback marker in the first 256 KiB of the current game log. Other
+outcomes remain unknown; Open game log provides the runtime's details.

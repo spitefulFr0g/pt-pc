@@ -16,6 +16,17 @@ namespace fs = std::filesystem;
 static void write(const fs::path& p, const std::string& s) { fs::create_directories(p.parent_path()); std::ofstream(p, std::ios::binary) << s; }
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
+    {
+        QTemporaryDir logs;
+        const QString path = logs.path() + "/pt.log";
+        QFile file(path); assert(file.open(QIODevice::WriteOnly));
+        file.write("vr: session created\n"); file.close();
+        assert(pt::launcher::KnownVrFailure(path).isEmpty());
+        assert(file.open(QIODevice::WriteOnly | QIODevice::Append));
+        file.write("vr: off for this run: no headset\n"); file.close();
+        assert(pt::launcher::KnownVrFailure(path).contains("no headset"));
+        assert(pt::launcher::KnownVrFailure(logs.path() + "/missing").isEmpty());
+    }
     if (argc == 4 && (QString::fromLocal8Bit(argv[1]) == "--hold-lock" || QString::fromLocal8Bit(argv[1]) == "--crash-lock")) {
         const bool crash = QString::fromLocal8Bit(argv[1]) == "--crash-lock";
         QString error;
@@ -50,6 +61,7 @@ int main(int argc, char** argv) {
     reopenedUi.start(QString::fromLocal8Bit(argv[1]), {"--test-reconnect", QString::fromStdU32String(root.u32string()), "--test-supported-sha256", QString::fromStdString(supported[0].sha256)});
     assert(reopenedUi.waitForFinished(10000) && reopenedUi.exitCode() == 0);
     assert(started.pid > 0 && !started.identity.isEmpty());
+    assert(fs::read_symlink(fs::path("/proc") / std::to_string(started.pid) / "cwd") == root / "linux");
     auto repeated = pt::launcher::PlayFlat(root, supported); assert(repeated.activity == pt::launcher::Activity::Running && repeated.pid == started.pid);
     auto reopened = pt::launcher::InspectSession(root); assert(reopened.activity == pt::launcher::Activity::Running && reopened.identity == started.identity);
     const auto alias = fs::path(temporary.path().toStdU32String()) / "bundle alias";
@@ -83,6 +95,7 @@ int main(int argc, char** argv) {
     fs::remove(root / "linux" / "arguments.txt");
     auto vrAttempt = pt::launcher::PlayVR(root, supported, true);
     assert(vrAttempt.activity == pt::launcher::Activity::Running);
+    assert(fs::read_symlink(fs::path("/proc") / std::to_string(vrAttempt.pid) / "cwd") == root / "linux");
     for (int i=0; i<100 && !fs::exists(root / "linux" / "arguments.txt"); ++i) QThread::msleep(20);
     std::ifstream vrArguments(root / "linux" / "arguments.txt"); std::string vrArgs((std::istreambuf_iterator<char>(vrArguments)), {});
     assert(vrArgs.find("--vr\n") != std::string::npos && vrArgs.find("--no-vr\n") == std::string::npos);
