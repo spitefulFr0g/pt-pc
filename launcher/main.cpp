@@ -150,6 +150,9 @@ int main(int argc, char** argv) {
             retry->show(); logButton->show();
             cachedInspection.reset();
         }
+        const bool pendingPreparation = pt::launcher::PreparationNeedsRecovery(chosen);
+        if (recoveryBlocked && !pendingPreparation) { cachedInspection.reset(); retry->hide(); }
+        recoveryBlocked = pendingPreparation;
         if (!cachedInspection) cachedInspection = pt::launcher::InspectBundle(chosen, supported);
         const auto& inspection = *cachedInspection;
         previousRunning = session.activity == pt::launcher::Activity::Running;
@@ -163,12 +166,15 @@ int main(int argc, char** argv) {
         resume->setVisible(session.activity == pt::launcher::Activity::Running);
         if (session.activity == pt::launcher::Activity::Running) warning->setText("Game process active. Return to the existing session.");
         else if (session.activity == pt::launcher::Activity::Uncertain) warning->setText(session.error.isEmpty() ? "Game activity uncertain. Play is blocked." : session.error);
+        else if (recoveryBlocked) warning->setText("Game preparation is active or interrupted. Choose Recover preparation after it has stopped.");
         else if (!lastFailure.isEmpty()) warning->setText(lastFailure);
         else if (!inspection.archives) warning->setText("Add your P.T. .pkg in Game files, or drop it here. The launcher will prepare it for you.");
         else warning->setText(QString::fromStdString(inspection.error.empty() ?
             (runtime ? "" : inspection.linux_runtime.present || inspection.windows_runtime.present ?
               "Runtime unverified. Install a matching supported release to enable Play and Settings." :
               "Runtime missing. Add a matching platform runtime to this bundle.") : inspection.error));
+        retry->setText(recoveryBlocked ? "Recover preparation" : "Retry");
+        if (recoveryBlocked) retry->show();
         details->setText(QString("Archives: %1\nPath list: %2\nRetained source: %3\nSaves: %4\nMods: %5\nLinux: %6\nWindows: %7")
             .arg(inspection.archives ? "recognized" : "missing")
             .arg(inspection.path_list ? "recognized" : "missing")
@@ -276,7 +282,10 @@ int main(int argc, char** argv) {
         refresh();
         if (!result.error.isEmpty()) { lastFailure = result.error; warning->setText(result.error); retry->show(); logButton->show(); }
     });
-    QObject::connect(retry, &QPushButton::clicked, &window, [&] { cachedInspection.reset(); lastFailure.clear(); retry->hide(); refresh(); });
+    QObject::connect(retry, &QPushButton::clicked, &window, [&] {
+        if (recoveryBlocked) { prepare({}, true); return; }
+        cachedInspection.reset(); lastFailure.clear(); retry->hide(); refresh();
+    });
     QObject::connect(resume, &QPushButton::clicked, &window, [&] {
         QString error; pt::launcher::ReturnToGame(pt::launcher::InspectSession(chosen), &error);
         if (!error.isEmpty()) warning->setText(error);

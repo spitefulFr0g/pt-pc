@@ -128,6 +128,21 @@ SessionState PlayFlat(const fs::path& bundle, const std::vector<SupportedRuntime
     if (current.activity != Activity::Stopped) return current;
     QString failure;
     bool started = guarded(root, [&] {
+        // Another launcher may have crashed after this GUI last refreshed.
+        // Inspect persisted mutation state while holding the same bundle lock
+        // used by preparation, before allowing a partially committed game to run.
+        std::error_code pendingError;
+        if (fs::exists(root / ".pt-preparation.json", pendingError) || pendingError) {
+            failure = "Game preparation needs recovery. Reopen the bundle or import your source again before Play.";
+            return;
+        }
+        for (fs::directory_iterator it(root, pendingError), end; !pendingError && it != end; it.increment(pendingError)) {
+            if (qpath(it->path().filename()).startsWith(".pt-preparation-")) {
+                failure = "An interrupted preparation remains. Reopen the bundle to recover before Play.";
+                return;
+            }
+        }
+        if (pendingError) { failure = "Cannot inspect preparation state. Check folder permissions before Play."; return; }
         const auto inspected = InspectBundle(root, supported);
 #ifdef _WIN32
         const auto& runtime = inspected.windows_runtime;

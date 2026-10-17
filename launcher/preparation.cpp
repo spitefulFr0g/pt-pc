@@ -143,6 +143,17 @@ void recover(const fs::path& root) {
     QString stageName = j["stage"].toString();
     if (j["version"].toInt() != 1 || !QRegularExpression("^\\.pt-preparation-[0-9a-f]{32}$").match(stageName).hasMatch()) fail("Invalid preparation stage name.");
     auto stage = root / path(stageName); safe(stage);
+    if (phase == "initializing") {
+        // The journal is published before creating staging. A crash can leave
+        // no directory, an empty directory, or only its ownership marker.
+        if (!j["files"].toArray().isEmpty()) fail("Invalid preparation initialization journal.");
+        if (!fs::exists(stage)) { fs::remove(root / journalName); return; }
+        if (fs::is_directory(stage) && fs::is_empty(stage)) { fs::remove(stage); fs::remove(root / journalName); return; }
+        stage = stagePath(root, j); safeTree(stage);
+        for (const auto& entry : fs::directory_iterator(stage))
+            if (entry.path().filename() != ".owner") fail("Unexpected initialization files; retain the stage for recovery.");
+        cleanup(root, stage); return;
+    }
     if (phase == "complete") {
         for (auto v : j["files"].toArray()) { auto f = v.toObject(); if (digest(root / path(f["name"].toString())) != f["new"].toString().toLatin1()) fail("Completed preparation has changed; retain the journal for manual recovery."); }
     } else if (phase == "rolledback") {
@@ -327,11 +338,16 @@ PreparationResult PrepareGame(const fs::path& bundle, const fs::path& input, con
             safe(root / "CUSA01127");
             bool adopted = setup::ArchivesUsable(root / "CUSA01127");
             if (adopted) { ordinary(root / "CUSA01127" / "chunk1.psarc"); ordinary(root / "CUSA01127" / "texture.qar"); }
-            if (fs::space(root).available < 3ull * 1024 * 1024 * 1024) fail("Preparation needs at least 3 GiB of free space in the portable bundle. Free space and retry.");
+            const auto requiredSpace = adopted ? 1024ull * 1024 : 3ull * 1024 * 1024 * 1024;
+            if (fs::space(root).available < requiredSpace) fail(adopted ? "Not enough free space to adopt this bundle's settings." : "Preparation needs at least 3 GiB of free space in the portable bundle. Free space and retry.");
             QString name = ".pt-preparation-" + QUuid::createUuid().toString(QUuid::Id128);
-            auto stage = root / path(name); fs::create_directory(stage); write(stage / ".owner", name.toUtf8());
-            QJsonObject j{{"version", 1}, {"stage", name}, {"phase", "staging"}, {"files", QJsonArray{}}}; saveJournal(root, j);
+            auto stage = root / path(name);
+            QJsonObject j{{"version", 1}, {"stage", name}, {"phase", "initializing"}, {"files", QJsonArray{}}};
+            saveJournal(root, j);
             try {
+                if (!fs::create_directory(stage)) fail("Could not create private preparation staging.");
+                write(stage / ".owner", name.toUtf8());
+                j["phase"] = "staging"; saveJournal(root, j);
                 auto fresh = stage / "new"; fs::create_directory(fresh);
                 if (!adopted) {
                     auto source = setup::ResolveSource(fs::absolute(input).lexically_normal()); check(cancelled);
