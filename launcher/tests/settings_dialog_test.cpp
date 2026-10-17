@@ -142,12 +142,13 @@ int main(int argc,char** argv){
     assert(QProcess::startDetached(QString::fromStdU32String(executable.u32string()),{"20"},{},&pid));
     for(int i=0;i<100&&pt::launcher::InspectSession(root).activity!=pt::launcher::Activity::Running;++i) QThread::msleep(10);
     QThread::msleep(650); app.processEvents();
-    put(ini,"[display]\nwidth=1750\nheight=910\nfullscreen=1\n");
+    put(ini,"[display]\nwidth=1750\nheight=910\nfullscreen=1\n[graphics]\nclarity=.3\n");
     QProcess::execute("kill",{"-TERM",QString::number(pid)});
     for(int i=0;i<100&&pt::launcher::InspectSession(root).activity==pt::launcher::Activity::Running;++i) QThread::msleep(10);
     for(int i=0;i<100&&afterExit.findChild<QSpinBox*>("displayWidth")->value()!=1750;++i) { app.processEvents(); QThread::msleep(10); }
     assert(afterExit.findChild<QSpinBox*>("displayWidth")->value()==1750);
     assert(afterExit.statusText().contains("reloaded from the runtime"));
+    assert(afterExit.findChild<QComboBox*>("graphicsPreset")->currentIndex()==4);
     afterExit.hide();
 #endif
 }

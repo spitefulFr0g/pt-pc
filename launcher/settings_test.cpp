@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
     const auto supported=SettingsRuntimes(root);
     const auto linuxIni = root / "linux/data/pt.ini";
     const auto windowsIni = root / "windows/data/pt.ini";
-    const auto sharedCache=root/"linux/data/enhanced-textures-2048/fixture.cache";
+    const auto sharedCache=root/"saves/enhanced-textures-2048/fixture.cache";
     put(sharedCache,"shared cache bytes");
     const std::string initial = "; keep comment\r\n[display]\r\nwidth = 1280\r\nheight=720\r\nfullscreen = 0\r\nunknown = untouched\r\n[other]\r\nkey = preserve\r\n";
     put(linuxIni, initial); put(windowsIni, "[display]\nwidth=1920\nheight=1080\nfullscreen=1\n");
@@ -77,6 +77,13 @@ int main(int argc, char** argv) {
         assert(pt::SaveAppSettings(linuxIni,upstream));
         const auto bytes=get(linuxIni);
         checkUpstream(bytes);
+        auto older=bytes;
+        for (const auto key : {"lens_ghosts = ", "deband = "}) {
+            const auto begin=older.find(key);
+            assert(begin!=std::string::npos);
+            older.erase(begin,older.find('\n',begin)-begin+1);
+        }
+        checkUpstream(older);
         for (const auto ray : {"-1","2","5","99","broken"}) checkUpstream(bytes+"\n[graphics]\nray_quality="+ray+"\n");
         checkUpstream(bytes+"\n[graphics]\nanisotropy=99\nshadow_quality=99\ntexture_detail=99\nfilm_grain=nan\nclarity=inf\n[raytracing]\nshadows=99\nreflections=YES\n");
         checkUpstream(bytes+"\n[graphics]\nanisotropy=7\nfilm_grain=-2\nclarity=2\nbloom=TRUE\ndepth_of_field=ON\n");
@@ -92,7 +99,8 @@ int main(int argc, char** argv) {
     const auto commentSaved=pt::launcher::ApplyDisplaySettings(root,pt::launcher::Platform::Linux,supported,withComment,originalPreset);
     assert(commentSaved.status==pt::launcher::ApplyStatus::Applied && commentSaved.persisted.value.graphicsPreset==pt::GraphicsPreset::Original);
     assert(get(linuxIni).find("; keep bloom note")!=std::string::npos);
-    assert(get(linuxIni).find("; bloom=untouched comment\r\n[other]\nvalue = unchanged # literal\n")!=std::string::npos);
+    assert(get(linuxIni).find("; bloom=untouched comment\r\n")!=std::string::npos);
+    assert(get(linuxIni).find("[other]\nvalue = unchanged # literal\n")!=std::string::npos);
     put(linuxIni,legacyUltra);
     const auto presetBytes=get(linuxIni);
     for(const auto* key:{"anisotropy = ","enhanced_textures = ","shadow_quality = ","ambient_occlusion = ","reflections = ","bloom = ","depth_of_field = ","motion_blur = ","lens_distortion = ","lens_ghosts = ","deband = ","film_grain = ","clarity = ","texture_detail = ","ray_quality = ","shadows = ","contact_shadows = ","full_shadows = ","bounce_light = ","glossy_reflections = "}) assert(presetBytes.find(key)!=std::string::npos);
@@ -104,6 +112,22 @@ int main(int argc, char** argv) {
     pt::launcher::DisplaySettingsEdit ultraEdit;ultraEdit.graphicsPreset=pt::GraphicsPreset::Ultra;
     supportedCapability=pt::launcher::ApplyDisplaySettings(root,pt::launcher::Platform::Linux,supported,supportedCapability,ultraEdit).persisted;
     assert(supportedCapability.value.graphicsPreset==pt::GraphicsPreset::Ultra);
+    for (const auto capability : {pt::launcher::RayTracingCapability::Unknown,
+                                 pt::launcher::RayTracingCapability::Unsupported,
+                                 pt::launcher::RayTracingCapability::Supported}) {
+        auto base=pt::launcher::ReadDisplaySettings(root,pt::launcher::Platform::Linux,supported,capability);
+        for (const auto preset : {pt::GraphicsPreset::Low,pt::GraphicsPreset::Original,pt::GraphicsPreset::High,pt::GraphicsPreset::Ultra}) {
+            pt::launcher::DisplaySettingsEdit change;
+            change.graphicsPreset=preset;
+            const auto applied=pt::launcher::ApplyDisplaySettings(root,pt::launcher::Platform::Linux,supported,base,change);
+            assert(applied.status==pt::launcher::ApplyStatus::Applied);
+            pt::AppSettings expected;
+            pt::ApplyGraphicsPreset(expected,preset,capability==pt::launcher::RayTracingCapability::Supported);
+            assert(applied.persisted.graphics==expected.graphics && applied.persisted.rayTracing==expected.ray_tracing);
+            base=applied.persisted;
+        }
+    }
+    assert(get(sharedCache)=="shared cache bytes");
     put(linuxIni,"[display]\nwidth=1280\nheight=720\nfullscreen=0\n[graphics]\ntexture_detail=0\nunknown=custom\n");
     auto manual=pt::launcher::ReadDisplaySettings(root,pt::launcher::Platform::Linux,supported);
     assert(manual.value.graphicsPreset==pt::GraphicsPreset::Custom);
