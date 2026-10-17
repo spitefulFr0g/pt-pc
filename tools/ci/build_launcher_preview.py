@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import platform
@@ -20,7 +21,7 @@ def main():
     parser.add_argument("--out", type=Path, default=REPO / "dist/launcher-preview")
     parser.add_argument("--jobs", type=int, default=2)
     args = parser.parse_args()
-    if (args.platform == "windows") != (os.name == "nt"):
+    if platform.system() != {"windows": "Windows", "linux": "Linux"}[args.platform]:
         parser.error("Build each platform natively on its corresponding runner")
     if platform.machine().lower() not in ("amd64", "x86_64"):
         parser.error("Preview bundles require an x86_64 build host")
@@ -51,6 +52,13 @@ def main():
                     raise subprocess.CalledProcessError(process.returncode, command)
 
         revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+        (evidence / "environment.json").write_text(json.dumps({
+            "source_revision": revision, "platform": platform.platform(),
+            "python": sys.version, "qt_prefix": env.get("QT_ROOT"),
+            "vulkan_sdk": env.get("VULKAN_SDK"),
+            "cmake": subprocess.check_output(["cmake", "--version"], text=True).strip(),
+            "glslc": subprocess.check_output(["glslc", "--version"], text=True).strip(),
+        }, indent=2) + "\n", encoding="utf-8")
         configure = ["cmake", "-S", REPO, "-B", runtime, "-G", "Ninja",
                      "-DCMAKE_BUILD_TYPE=Release", "-DPT_UPSCALERS=ON", "-DPT_GAMEPLUS=ON"]
         if args.platform == "windows":
