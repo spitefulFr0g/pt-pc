@@ -221,7 +221,8 @@ int main(int argc, char** argv) {
         vrReadiness->setText(vrModeReadiness.state == pt::launcher::ReadinessState::Ready ? QString() : readinessText("VR", vrModeReadiness));
         retryVr->setVisible(vrModeReadiness.state != pt::launcher::ReadinessState::Ready);
         retryVr->setEnabled(!launchPending && !recoveryBlocked && session.activity == pt::launcher::Activity::Stopped);
-        settings->setEnabled(runtime && !preparing);
+        settings->setEnabled(runtime && !preparing && !recoveryBlocked);
+        settings->setToolTip(runtime ? "" : "Align with a matching supported runtime to edit settings.");
         resume->setVisible(session.activity == pt::launcher::Activity::Running);
         if (session.activity == pt::launcher::Activity::Running) warning->clear();
         else if (session.activity == pt::launcher::Activity::Uncertain) warning->setText(session.error.isEmpty() ? "Game activity uncertain. Play is blocked." : session.error);
@@ -264,6 +265,7 @@ int main(int argc, char** argv) {
     prepare = [&](const QString& source, bool recoverOnly) {
         if (preparing) { warning->setText("Game preparation is already running."); return; }
         if (chosen.empty()) { warning->setText("Extract the portable preview first, then run its launcher."); return; }
+        settings->setEnabled(false);
         preparing = true; cancelRequested->store(false); preparationLog = true;
         logButton->setText("Open preparation log");
         play->setEnabled(false); vr->setEnabled(false); retryVr->setEnabled(false); resume->hide(); retry->hide(); logButton->hide();
@@ -388,7 +390,7 @@ int main(int argc, char** argv) {
 #else
         constexpr auto platform = pt::launcher::Platform::Linux;
 #endif
-        pt::launcher::SettingsDialog dialog(chosen, platform, &window);
+        pt::launcher::SettingsDialog dialog(chosen, platform, supported, &window);
         dialog.exec();
     });
     QObject::connect(logButton, &QPushButton::clicked, &window, [&] {
