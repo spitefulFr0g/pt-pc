@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
     std::ifstream settings(root / "linux" / "data" / "pt.ini"); std::string settingsText((std::istreambuf_iterator<char>(settings)), {});
     assert(settingsText == "[display]\nvr=true\n");
     kill(started.pid, SIGTERM);
-    for (int i = 0; i < 100 && pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Running; ++i) QThread::msleep(20);
+    for (int i = 0; i < 100 && pt::launcher::InspectSession(root).activity != pt::launcher::Activity::Stopped; ++i) QThread::msleep(20);
     assert(pt::launcher::InspectSession(root).activity == pt::launcher::Activity::Stopped);
     qputenv("XR_RUNTIME_JSON", QString::fromStdU32String((root / "missing-active-runtime.json").u32string()).toLocal8Bit());
     write(root / "linux/libopenxr_loader.so.1", "controlled loader fixture");

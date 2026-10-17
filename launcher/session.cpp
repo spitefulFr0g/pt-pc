@@ -95,6 +95,19 @@ SessionState InspectSession(const fs::path& bundle) {
         if (ec && (bytes.empty() || ec == std::errc::permission_denied)) {
             std::ifstream comm(it->path() / "comm"); std::string processName; std::getline(comm, processName);
             if (processName == target.filename().string()) {
+                // A zombie has no executable to inspect and cannot still own
+                // the bundle. Check its state before treating the name as an
+                // active but uninspectable game process.
+                std::ifstream stat(it->path() / "stat"); std::string line;
+                if (!std::getline(stat, line)) {
+                    result.activity = Activity::Uncertain; result.error = "Cannot establish game process identity."; return result;
+                }
+                const size_t close = line.rfind(')');
+                if (close == std::string::npos || close + 2 >= line.size()) {
+                    result.activity = Activity::Uncertain; result.error = "Cannot establish game process identity."; return result;
+                }
+                const char state = line[close + 2];
+                if (state == 'Z' || state == 'X') continue;
                 result.activity = Activity::Uncertain; result.error = "A game process cannot be inspected."; return result;
             }
         }
