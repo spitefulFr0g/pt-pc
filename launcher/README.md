@@ -93,7 +93,7 @@ Import a package or extracted folder through the launcher as described above.
 Existing manually prepared bundles with the archives under `CUSA01127` at the
 bundle root can still be selected with **Open existing portable bundle**. The
 preview covers preparation, bundle inspection and flat launch with the matching runtime.
-Integrated settings, VR, controller features, secure updating,
+Ticket #10 adds independent flat/VR readiness and a separate VR attempt. It does not establish headset presentation. Controller features, secure updating,
 native Wayland, SteamOS/Hyprland/Gaming Mode, and gameplay remain unverified or
 pending. A passing CI smoke run is not a gameplay result.
 
@@ -155,3 +155,36 @@ Native compositor window focus and a clean packaged bundle remain pending.
 On X11, Return to game uses `xdotool` when available; on Wayland, the launcher
 points to the compositor's window switcher. Windows 11 MSVC/Qt build and runtime
 checks remain pending because the MSVC x64 toolset is unavailable on this host.
+
+## Independent flat and VR readiness (issue #10)
+
+The home screen uses the public `CheckReadiness` operation for each launch mode.
+The probe runs away from the Qt thread, bounds the OpenXR manifest to 64 KiB and
+the Linux loader inventory to two seconds, and presents unverified runtime
+hashes as unknown with mode-specific **Try Play anyway** and **Try VR anyway**
+actions. It only reads the active
+OpenXR registration and never changes the system selection or creates an XR
+instance. A discovered runtime is not evidence of headset connection or
+presentation. Flat launch keeps `--no-vr` even when the saved settings enable
+VR; the separate VR operation passes `--vr`, the same explicit bundle paths,
+and `--no-update-check` without writing the saved preference.
+
+`PT_SUPPORTED_LINUX_VR` and `PT_SUPPORTED_WINDOWS_VR` declare OpenXR support for
+the exact runtime hashes paired into a launcher build. The pinned Linux preview
+runtime hash `691e4667ce082b10d82cd0814ee577a147895caaecd4961d54042c4d6165e114`
+contains the upstream no-OpenXR build branch, so it is marked VR-blocked while
+flat remains available. Windows defaults to OpenXR-capable; readiness still
+requires its bundled loader and otherwise reports a blocker. These declarations
+must be revisited with each supported runtime revision.
+
+Run `launcher/run-issue10-qt612-container.sh [evidence-directory]` for the
+noninteractive Qt 6.12.0/GCC 13.3.0 harness. By default it writes under
+`/tmp/pt-launcher-issue10-evidence`. It configures and builds the launcher,
+drives the actual Qt unknown/Try Play anyway, Try VR anyway and Retry VR
+readiness controls, and
+runs controlled manifest, loader timeout, missing-loader, flat-independence,
+saved-preference, process-argument, session and window checks. Fixture runtime
+and loader files are disposable. This is Linux controlled-boundary evidence;
+Windows runtime/loader behavior, native headset presentation, and a physical
+device remain unverified. Ticket #11 launch outcome/fallback and ticket #12
+Linux loader packaging are not included.

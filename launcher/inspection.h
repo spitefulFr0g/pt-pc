@@ -8,12 +8,14 @@ struct SupportedRuntime {
     std::string platform;
     std::string sha256;
     std::string version;
+    bool supports_vr = false;
 };
 struct RuntimeInspection {
     bool present = false;
     bool verified = false;
     bool settings = false;
     bool logs = false;
+    bool supports_vr = false;
     std::string detail;
     std::string version;
 };
