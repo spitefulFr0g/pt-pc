@@ -2,6 +2,7 @@
 #include "session.h"
 #include "preparation.h"
 #include "settings_dialog.h"
+#include "controller.h"
 #include <QApplication>
 #include <QFileDialog>
 #include <QDesktopServices>
@@ -115,7 +116,7 @@ int main(int argc, char** argv) {
     QFontDatabase::addApplicationFont(assets + "PirataOne-Regular.ttf");
     ResponsiveWindow window; window.setWindowTitle("P.T. Launcher"); window.resize(1000, 680);
     window.setAcceptDrops(true);
-    window.setStyleSheet("QWidget{background:#10271f;color:#e5e1d6;font:16px sans-serif} QPushButton{background:#294738;border:1px solid #688674;border-radius:7px;padding:11px;text-align:left} QPushButton:hover{background:#41634d} QPushButton:disabled{color:#9ba99d} QLabel#title{font:60px 'Pirata One'} QLabel#warning{color:#e8c495}");
+    window.setStyleSheet("QWidget{background:#10271f;color:#e5e1d6;font:16px sans-serif} QPushButton{background:#294738;border:1px solid #688674;border-radius:7px;padding:11px;text-align:left} QPushButton:hover{background:#41634d} QPushButton:focus{border:3px solid #e8c495;background:#41634d} QPushButton:disabled{color:#9ba99d} QLineEdit:focus,QComboBox:focus,QSpinBox:focus{border:2px solid #e8c495} QLabel#title{font:60px 'Pirata One'} QLabel#warning{color:#e8c495}");
     auto* layout = new QHBoxLayout(&window);
     window.layout = layout;
     auto* artwork = new Artwork(assets + "spooky-forest.jpg"); window.artwork = artwork;
@@ -125,6 +126,8 @@ int main(int argc, char** argv) {
     auto* panel = new QWidget; auto* controls = new QVBoxLayout(panel); controls->setSpacing(14); controls->setContentsMargins(28,30,28,30);
     auto* title = new QLabel("P.T."); title->setObjectName("title"); controls->addWidget(title);
     controls->addWidget(new QLabel("A quiet place to return.")); controls->addStretch();
+    auto* controllerHints = new QLabel("D-pad / stick: move    A: select    B: back");
+    controllerHints->setObjectName("controllerHints"); controllerHints->setWordWrap(true); controls->addWidget(controllerHints);
     auto* warning = new QLabel("Choose your P.T. .pkg in Game files, or drop it here."); warning->setObjectName("warning"); warning->setWordWrap(true); controls->addWidget(warning);
     auto* play = new QPushButton("Play"); play->setObjectName("play"); play->setEnabled(false); controls->addWidget(play);
     auto* resume = new QPushButton("Return to game"); resume->setObjectName("returnToGame"); resume->hide(); controls->addWidget(resume);
@@ -140,6 +143,7 @@ int main(int argc, char** argv) {
     auto* updates = new QPushButton("Updates"); updates->setEnabled(false); controls->addWidget(updates);
     auto* details = new QLabel; details->setWordWrap(true); controls->addWidget(details);
     bool preparing = false, closeAfterPreparation = false, preparationLog = false, recoveryBlocked = false;
+    pt::launcher::ControllerAdapter* controllerAdapter = nullptr;
     auto cancelRequested = std::make_shared<std::atomic<bool>>(false);
     QThread* preparationThread = nullptr;
     QPointer<QMessageBox> cancelPrompt;
@@ -291,6 +295,10 @@ int main(int argc, char** argv) {
     QObject::connect(play, &QPushButton::clicked, &window, [&] {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
         auto result = pt::launcher::PlayFlat(chosen, supported);
+        if (controllerAdapter) {
+            if (result.activity == pt::launcher::Activity::Stopped) controllerAdapter->reopenAfterHandoff();
+            else controllerAdapter->releaseForHandoff();
+        }
         refresh();
         if (!result.error.isEmpty()) { lastFailure = result.error; warning->setText(result.error); retry->show(); logButton->show(); }
     });
@@ -365,6 +373,9 @@ int main(int argc, char** argv) {
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); scroll->setWidget(panel);
     layout->addWidget(scroll, 3);
     window.show();
+    controllerAdapter = new pt::launcher::ControllerAdapter(&window, [&] {
+        return chosen.empty() || pt::launcher::InspectSession(chosen).activity == pt::launcher::Activity::Stopped;
+    }, &window);
     if (argc == 3 && QString::fromLocal8Bit(argv[1]) == "--screenshot") {
         const QString output = QString::fromLocal8Bit(argv[2]);
         QTimer::singleShot(250, &window, [&window, output] {

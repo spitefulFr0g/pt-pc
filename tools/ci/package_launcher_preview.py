@@ -249,6 +249,7 @@ def main():
             "Game archives are supplied by the player.\n\n"
             f"Qt {qt_version(qt)} shared libraries and plugins are included under the "
             "[Qt LGPLv3 terms](https://www.qt.io/terms-conditions/#licenses). "
+            "The launcher statically links SDL 3.4.16; its license is in notices/SDL3-LICENSE.txt. "
             f"Corresponding Qt source: https://download.qt.io/archive/qt/{'.'.join(qt_version(qt).split('.')[:2])}/{qt_version(qt)}/src/ . "
             "The launcher source is at https://github.com/spitefulFr0g/pt-pc . "
             "Runtime third-party notices are in the platform runtime's licenses/ directory. "
