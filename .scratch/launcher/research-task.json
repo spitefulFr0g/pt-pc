@@ -1,0 +1,24 @@
+{
+  "title": "Establish the native Linux VR prerequisites",
+  "taskId": "node:delegated-task:command%3Amcp%3A4f23cb5f-b6da-4801-a155-1fcfe11c2ea2%3Adelegate-task%3Alauncher-wayfinder-linux-vr-research-20261017-r1",
+  "childThreadId": "thread:delegated-task:command%3Amcp%3A4f23cb5f-b6da-4801-a155-1fcfe11c2ea2%3Adelegate-task%3Alauncher-wayfinder-linux-vr-research-20261017-r1",
+  "statusAtLaunch": "running",
+  "providerInstanceId": "codex",
+  "model": "gpt-6.1-sol",
+  "billing": {
+    "classification": "subscription",
+    "route": "codex/chatgpt",
+    "guard": "codex-implement/scripts/billing.py",
+    "workerMustReverify": true
+  },
+  "researchBranch": "research/launcher-linux-vr",
+  "artifact": ".scratch/launcher/research/native-linux-vr.md",
+  "isolation": "worktree",
+  "merge": false,
+  "pullRequest": false,
+  "status": "completed",
+  "commit": "779ab50a40d05fa9fb57a401d6c55cbd8dc216a1",
+  "pushSucceeded": true,
+  "workerBillingVerified": true,
+  "result": "https://github.com/spitefulFr0g/pt-pc/blob/779ab50a40d05fa9fb57a401d6c55cbd8dc216a1/.scratch/launcher/research/native-linux-vr.md"
+}
