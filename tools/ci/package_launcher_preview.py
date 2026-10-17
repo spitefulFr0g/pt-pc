@@ -216,6 +216,11 @@ def main():
                 f"launcher {args.platform} supported hash does not match {executable}")
         destination = root / args.platform
         shutil.copytree(runtime_stage, destination)
+        if args.platform == "linux":
+            # .NET's optional trace provider needs the obsolete liblttng-ust.so.0
+            # ABI. Tracing is not used by the package extractor, and carrying
+            # this provider would leave an unresolved dependency in the bundle.
+            (destination / "extractor/libcoreclrtraceptprovider.so").unlink(missing_ok=True)
         helper = destination / "extractor" / ("PT.PkgExtract.exe" if args.platform == "windows" else "PT.PkgExtract")
         require(helper.is_file(), f"bundled package extraction helper missing: {helper}")
         require((helper.parent / "LICENSE-LibOrbisPkg.txt").is_file()
@@ -282,6 +287,7 @@ def main():
             f"Corresponding Qt source: https://download.qt.io/archive/qt/{'.'.join(qt_version(qt).split('.')[:2])}/{qt_version(qt)}/src/ . "
             "The launcher source is at https://github.com/spitefulFr0g/pt-pc . "
             "Runtime third-party notices are in the platform runtime's licenses/ directory. "
+            "The Linux extractor omits .NET's optional trace provider because its required legacy LTTng ABI is unavailable on supported hosts. "
             "Linux distribution library copyright records, when applicable, are under notices/linux-dependencies/. "
             "Windows compiler runtime licensing is governed by the "
             "[Microsoft Visual C++ redistributable terms](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files).\n",
