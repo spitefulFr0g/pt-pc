@@ -25,9 +25,19 @@ struct DisplaySettingsApplyResult {
     DisplaySettingsSnapshot persisted;
     QString error;
 };
+// Public settings contract for subsequent settings slices (#8/#9): callers supply
+// the same explicit release identities as InspectBundle/PrepareGame. Empty or
+// nonmatching identities make Read unavailable; Apply revalidates under the bundle
+// mutation guard. A snapshot is the user's comparison base, and only optional edit
+// fields are deliberate changes. Conflict requires reload or dirty-field rebase.
+// No edited fields means no write. INI input is bounded to 4 MiB. Linked platform,
+// data, or settings paths are rejected. A missing data directory is created on save.
+// Conflict detection compares/patches one byte snapshot and checks it before commit;
+// it cannot provide compare-and-swap against an uncooperative external writer.
 // Adapter pinned to the unchanged supported runtime settings semantics at source revision 60fe8b3.
 inline constexpr const char* kDisplaySettingsRuntimeRevision = "60fe8b324aca24c264e89378ae0d2c61f3a674af";
-DisplaySettingsSnapshot ReadDisplaySettings(const std::filesystem::path& bundle, Platform platform);
+DisplaySettingsSnapshot ReadDisplaySettings(const std::filesystem::path& bundle, Platform platform,
+    const std::vector<SupportedRuntime>& supported);
 DisplaySettingsApplyResult ApplyDisplaySettings(const std::filesystem::path& bundle, Platform platform,
-    const DisplaySettingsSnapshot& base, const DisplaySettingsEdit& edit);
+    const std::vector<SupportedRuntime>& supported, const DisplaySettingsSnapshot& base, const DisplaySettingsEdit& edit);
 }
