@@ -106,10 +106,17 @@ def linux_deploy(root, qt):
             if EXCLUDED_LINUX.match(soname) or soname.startswith(("libGL", "libEGL", "libvulkan", "libdrm", "libgbm")):
                 continue
             target = libdir / soname
+            resolved_source = Path(source).resolve()
+            # Runtime libraries already shipped in the game tree belong to
+            # this source build. Keep them there and inspect their dependency
+            # closure without looking for a distro package copyright record.
+            if resolved_source.is_relative_to(root.resolve()):
+                queue.append(resolved_source)
+                continue
             if not target.exists():
-                shutil.copy2(Path(source).resolve(), target)
+                shutil.copy2(resolved_source, target)
                 queue.append(target)
-                if not Path(source).resolve().is_relative_to(qt):
+                if not resolved_source.is_relative_to(qt):
                     package = None
                     for candidate in (source, str(Path(source).resolve()), str(Path(source).resolve()).replace("/usr/lib/", "/lib/", 1)):
                         query = subprocess.run(["dpkg-query", "-S", candidate], text=True, capture_output=True)
