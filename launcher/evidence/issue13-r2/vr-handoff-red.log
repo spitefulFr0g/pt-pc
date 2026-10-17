@@ -1,0 +1,14 @@
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 6: launcher_controller_launch
+1/1 Test #6: launcher_controller_launch .......***Failed    3.28 sec
+--test-controller-vr: Controller handle retained during launch handoff, activity=0, error=, focus=
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   3.28 sec
+
+The following tests FAILED:
+	  6 - launcher_controller_launch (Failed)
+Errors while running CTest
