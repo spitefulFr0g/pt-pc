@@ -8,6 +8,7 @@
 #ifdef __linux__
 #include <sys/stat.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -54,9 +55,12 @@ int main(int argc, char** argv) {
     fs::permissions(loader, fs::perms::owner_exec, fs::perm_options::add);
     const auto oldPath = qgetenv("PATH");
     qputenv("PATH", QString::fromStdU32String(tools.u32string()).toLocal8Bit());
+    const auto oldLocale = qgetenv("LC_ALL");
+    qputenv("LC_ALL", "C"); // helper startup diagnostics must not corrupt its result
     auto unknown = pt::launcher::CheckReadiness(bundle, pt::launcher::LaunchMode::VR);
     assert(unknown.state == pt::launcher::ReadinessState::Unknown);
     assert(unknown.explanation.contains("Headset connection"));
+    qputenv("LC_ALL", oldLocale);
 
     write(loader, "#!/bin/sh\nexit 0\n");
     auto missingLoader = pt::launcher::CheckReadiness(bundle, pt::launcher::LaunchMode::VR);
@@ -99,6 +103,8 @@ int main(int argc, char** argv) {
     timer.restart();
     auto fifo = pt::launcher::CheckReadiness(bundle, pt::launcher::LaunchMode::VR, 60);
     assert(fifo.state == pt::launcher::ReadinessState::Unknown);
-    assert(timer.elapsed() < 500);
+    assert(fifo.explanation.contains("timed out"));
+    assert(timer.elapsed() >= 50 && timer.elapsed() < 500);
+    assert(waitpid(-1, nullptr, WNOHANG) == -1 && errno == ECHILD);
 #endif
 }

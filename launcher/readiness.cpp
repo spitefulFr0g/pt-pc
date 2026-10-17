@@ -147,20 +147,21 @@ ModeReadiness CheckReadiness(const BundleInspection& bundle, LaunchMode mode, in
 #endif
     );
     probe.setArguments({QString::fromStdU32String(bundle.root.u32string()), QString::number(probeTimeoutMs)});
-    probe.setProcessChannelMode(QProcess::MergedChannels);
+    probe.setProcessChannelMode(QProcess::SeparateChannels);
 #ifdef __linux__
     probe.setUnixProcessParameters(QProcess::UnixProcessFlag::CreateNewSession);
 #endif
     QElapsedTimer timer; timer.start();
     const int budget = qBound(1, probeTimeoutMs, 2000) + 100; // includes child cleanup
     probe.start();
-    QByteArray output;
+    QByteArray output, diagnostics;
     bool exceeded = false;
     if (probe.waitForStarted(budget)) {
         while (probe.state() != QProcess::NotRunning && timer.elapsed() < budget) {
             probe.waitForReadyRead(std::min(10, std::max(1, budget - int(timer.elapsed()))));
             output += probe.read(8193);
-            if (output.size() > 8192) { exceeded = true; break; }
+            diagnostics += probe.readAllStandardError();
+            if (output.size() + diagnostics.size() > 8192) { exceeded = true; break; }
         }
     }
     if (probe.state() != QProcess::NotRunning) {
@@ -174,7 +175,8 @@ ModeReadiness CheckReadiness(const BundleInspection& bundle, LaunchMode mode, in
             "The readiness probe timed out. Choose Try VR anyway.");
     }
     output += probe.read(8193);
-    if (output.size() > 8192 || probe.exitStatus() != QProcess::NormalExit || probe.exitCode() != 0)
+    diagnostics += probe.readAllStandardError();
+    if (output.size() + diagnostics.size() > 8192 || probe.exitStatus() != QProcess::NormalExit || probe.exitCode() != 0)
         return unknown(mode, "The readiness probe could not be confirmed. Choose Try VR anyway.");
     const auto result = QJsonDocument::fromJson(output).object();
     const int state = result.value("state").toInt(-1);
