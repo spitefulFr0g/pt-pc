@@ -1,6 +1,7 @@
 #include "controller.h"
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QComboBox>
 #include <QDateTime>
@@ -63,12 +64,33 @@ bool DispatchControllerAction(QWidget* scope, ControllerAction action) {
     if (!scope) return false;
     QWidget* focused = QApplication::focusWidget();
     if (!focused || (focused != scope && !scope->isAncestorOf(focused))) focused = scope;
+    // Native popup/list controls already implement keyboard navigation, selection,
+    // safe defaults and Escape. Use that same path instead of tabbing out of them.
+    QAbstractItemView* view = nullptr;
+    for (QWidget* current = focused; current && !view; current = current->parentWidget())
+        view = qobject_cast<QAbstractItemView*>(current);
+    if (view && action != ControllerAction::Edit) {
+        const int key = action == ControllerAction::Up ? Qt::Key_Up :
+            action == ControllerAction::Down ? Qt::Key_Down :
+            action == ControllerAction::Left ? Qt::Key_Left :
+            action == ControllerAction::Right ? Qt::Key_Right :
+            action == ControllerAction::Activate ? Qt::Key_Return : Qt::Key_Escape;
+        QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
+        QApplication::sendEvent(view, &press);
+        return true;
+    }
     switch (action) {
     case ControllerAction::Up: focusStep(scope, true); return true;
     case ControllerAction::Down: focusStep(scope, false); return true;
     case ControllerAction::Left:
     case ControllerAction::Right:
+        if (auto* spin = qobject_cast<QSpinBox*>(focused)) {
+            if (spin->isReadOnly()) return false;
+            QKeyEvent step(QEvent::KeyPress, action == ControllerAction::Right ? Qt::Key_Up : Qt::Key_Down, Qt::NoModifier);
+            return QApplication::sendEvent(spin, &step);
+        }
         if (auto* combo = qobject_cast<QComboBox*>(focused)) {
+            if (combo->count() == 0) return false;
             combo->setCurrentIndex((combo->currentIndex() + (action == ControllerAction::Right ? 1 : combo->count() - 1)) % combo->count());
             return true;
         }
@@ -82,8 +104,16 @@ bool DispatchControllerAction(QWidget* scope, ControllerAction action) {
         return QApplication::sendEvent(focused, &event);
     }
     case ControllerAction::Edit:
-        if (auto* line = qobject_cast<QLineEdit*>(focused)) { line->setFocus(Qt::OtherFocusReason); return true; }
-        return false;
+        // Qt's software-input request is the extension seam for the later in-app
+        // keyboard. Until then, enter the native editor and select its draft.
+        if (auto* combo = qobject_cast<QComboBox*>(focused)) { if (!combo->count()) return false; combo->showPopup(); return true; }
+        if (auto* spin = qobject_cast<QSpinBox*>(focused)) spin->selectAll();
+        else if (auto* line = qobject_cast<QLineEdit*>(focused)) line->selectAll();
+        else if (auto* text = qobject_cast<QTextEdit*>(focused)) text->selectAll();
+        else return false;
+        focused->setFocus(Qt::OtherFocusReason);
+        { QEvent request(QEvent::RequestSoftwareInputPanel); QApplication::sendEvent(focused, &request); }
+        return true;
     }
     return false;
 }
@@ -91,7 +121,7 @@ bool DispatchControllerAction(QWidget* scope, ControllerAction action) {
 ControllerAdapter::ControllerAdapter(QWidget* window, std::function<bool()> ownsSession, QObject* parent)
     : QObject(parent), window_(window), ownsSession_(std::move(ownsSession)), timer_(new QTimer(this)) {
     // Use SDL's mapped gamepad API, but leave the Deck's raw HIDAPI path to Steam Input.
-    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_STEAMDECK, "0");
+    SDL_SetHintWithPriority(SDL_HINT_JOYSTICK_HIDAPI_STEAMDECK, "0", SDL_HINT_OVERRIDE);
     constexpr Uint32 required = SDL_INIT_GAMEPAD | SDL_INIT_JOYSTICK | SDL_INIT_EVENTS;
     if ((SDL_WasInit(required) & required) != required) {
         ownsSdl_ = SDL_InitSubSystem(SDL_INIT_GAMEPAD | SDL_INIT_JOYSTICK | SDL_INIT_EVENTS);
@@ -103,12 +133,17 @@ ControllerAdapter::ControllerAdapter(QWidget* window, std::function<bool()> owns
         connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget* now) {
             if (!now || !usable(now)) return;
             if (now->window() == window_) lastFocus_ = now;
+            if (!ownedBy(window_, now)) return;
             auto* hints = now->window()->findChild<QLabel*>("controllerHints");
+            if (!hints) hints = window_->findChild<QLabel*>("controllerHints");
             if (hints) {
-                const bool editable = qobject_cast<QLineEdit*>(now) || qobject_cast<QTextEdit*>(now) ||
-                    qobject_cast<QComboBox*>(now) || qobject_cast<QSpinBox*>(now);
-                hints->setText(editable ? "D-pad / stick: move    A: select    B: back    X: edit" :
-                    "D-pad / stick: move    A: select    B: back");
+                if (qobject_cast<QComboBox*>(now))
+                    hints->setText("Up/down: move    Left/right: change    A: choices    X: edit    B: back");
+                else if (qobject_cast<QSpinBox*>(now))
+                    hints->setText("Up/down: move    Left/right: change    X: edit    B: back");
+                else if (qobject_cast<QLineEdit*>(now) || qobject_cast<QTextEdit*>(now))
+                    hints->setText("D-pad / stick: move    X: edit    B: back");
+                else hints->setText("D-pad / stick: move    A: select    B: back");
             }
         });
         connect(qApp, &QApplication::applicationStateChanged, this, [this](Qt::ApplicationState) {
@@ -137,7 +172,8 @@ void ControllerAdapter::releaseForHandoff() {
 }
 
 void ControllerAdapter::reopenAfterHandoff() {
-    if (!available() || !window_ || !QApplication::activeWindow() || QApplication::applicationState() != Qt::ApplicationActive || (ownsSession_ && !ownsSession_())) return;
+    if (gamepad_) return; // SDL_OpenGamepad adds a reference even for an already-open device.
+    if (!available() || !window_ || !ownedBy(window_, QApplication::activeWindow()) || !window_->isVisible() || QApplication::applicationState() != Qt::ApplicationActive || (ownsSession_ && !ownsSession_())) return;
     handedOff_ = false;
     int num = 0;
     SDL_JoystickID* devices = SDL_GetJoysticks(&num);
@@ -149,6 +185,18 @@ void ControllerAdapter::reopenAfterHandoff() {
     SDL_free(devices);
     // Require all controls released after opening. A held button cannot activate a focused action.
     armed_ = false; horizontal_ = vertical_ = 0; nextRepeatMs_ = 0; southWasDown_ = eastWasDown_ = westWasDown_ = false;
+}
+
+void ControllerAdapter::dispatch(QWidget* scope, ControllerAction action) {
+    // Leave the SDL polling timer's stack before a UI action enters QDialog::exec.
+    // Otherwise Qt suppresses that same timer and B/navigation stop in the modal.
+    QTimer::singleShot(0, this, [this, scope = QPointer<QWidget>(scope), action] {
+        if (!scope || !window_ || !window_->isVisible() ||
+            QApplication::applicationState() != Qt::ApplicationActive ||
+            QApplication::activeWindow() != scope || !ownedBy(window_, scope)) return;
+        if (ownsSession_ && !ownsSession_()) { releaseForHandoff(); return; }
+        DispatchControllerAction(scope, action);
+    });
 }
 
 void ControllerAdapter::pump() {
@@ -192,7 +240,7 @@ void ControllerAdapter::pump() {
         SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_LEFT) || SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
     const bool buttonsNeutral = !SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_SOUTH) && !SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_EAST) &&
         !SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_WEST);
-    const bool neutral = x > -deadZone && x < deadZone && y > -deadZone && y < deadZone && !dpad && buttonsNeutral;
+    const bool neutral = x >= -deadZone && x <= deadZone && y >= -deadZone && y <= deadZone && !dpad && buttonsNeutral;
     if (!armed_) { if (neutral) armed_ = true; else return; }
     const int nextH = x > deadZone ? 1 : x < -deadZone ? -1 : 0;
     const int nextV = y > deadZone ? 1 : y < -deadZone ? -1 : 0;
@@ -204,22 +252,31 @@ void ControllerAdapter::pump() {
     const bool ddown = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN);
     const int navH = dleft ? -1 : dright ? 1 : nextH;
     const int navV = dup ? -1 : ddown ? 1 : nextV;
-    if (navH || navV) {
-        if (navH != horizontal_ || navV != vertical_) {
-            DispatchControllerAction(target, navH ? (navH < 0 ? ControllerAction::Left : ControllerAction::Right) : (navV < 0 ? ControllerAction::Up : ControllerAction::Down));
-            nextRepeatMs_ = now + repeatDelayMs;
-        } else if (now >= nextRepeatMs_) {
-            DispatchControllerAction(target, navH ? (navH < 0 ? ControllerAction::Left : ControllerAction::Right) : (navV < 0 ? ControllerAction::Up : ControllerAction::Down));
-            nextRepeatMs_ = now + repeatRateMs;
-        }
-    } else nextRepeatMs_ = 0;
+    // Polling may cache idle process discovery, but never authorization for an action.
+    if ((navH || navV || !buttonsNeutral) && ownsSession_ && !ownsSession_()) {
+        releaseForHandoff();
+        return;
+    }
+    const bool navigate = (navH || navV) &&
+        (navH != horizontal_ || navV != vertical_ || now >= nextRepeatMs_);
+    if (navigate) nextRepeatMs_ = now +
+        (navH != horizontal_ || navV != vertical_ ? repeatDelayMs : repeatRateMs);
+    else if (!navH && !navV) nextRepeatMs_ = 0;
     horizontal_ = navH; vertical_ = navV;
     const bool south = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_SOUTH);
     const bool east = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_EAST);
     const bool west = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_WEST);
-    if (south && !southWasDown_) DispatchControllerAction(target, ControllerAction::Activate);
-    if (east && !eastWasDown_) DispatchControllerAction(target, ControllerAction::Back);
-    if (west && !westWasDown_) DispatchControllerAction(target, ControllerAction::Edit);
+    const bool activate = south && !southWasDown_;
+    const bool back = east && !eastWasDown_;
+    const bool edit = west && !westWasDown_;
+    // click()/Escape can enter nested modal loops or hand off the device. Consume
+    // every edge first; never overwrite state established by those callbacks.
     southWasDown_ = south; eastWasDown_ = east; westWasDown_ = west;
+    if (activate) { dispatch(target, ControllerAction::Activate); return; }
+    if (back) { dispatch(target, ControllerAction::Back); return; }
+    if (edit) { dispatch(target, ControllerAction::Edit); return; }
+    if (navigate) dispatch(target, navH ?
+        (navH < 0 ? ControllerAction::Left : ControllerAction::Right) :
+        (navV < 0 ? ControllerAction::Up : ControllerAction::Down));
 }
 }

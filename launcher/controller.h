@@ -10,7 +10,9 @@ class QTimer;
 namespace pt::launcher {
 enum class ControllerAction { Up, Down, Left, Right, Activate, Back, Edit };
 
-// Normalized launcher action seam shared by the SDL adapter and later picker/keyboard flows.
+// Normalized launcher action seam shared by SDL and Qt controls. Edit selects the
+// native draft and sends QEvent::RequestSoftwareInputPanel to the field; the later
+// keyboard can consume that public Qt event. Combo Edit opens its native choices.
 bool DispatchControllerAction(QWidget* scope, ControllerAction action);
 
 class ControllerAdapter final : public QObject {
@@ -22,6 +24,7 @@ public:
     void reopenAfterHandoff();
 private:
     void pump();
+    void dispatch(QWidget* scope, ControllerAction action);
     QWidget* window_;
     QPointer<QWidget> lastFocus_;
     std::function<bool()> ownsSession_;

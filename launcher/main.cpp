@@ -33,6 +33,10 @@
 #include <memory>
 #include <optional>
 
+#if defined(PT_LAUNCHER_TEST_BUILD) && defined(__linux__)
+#include "tests/controller_launch_driver.h"
+#endif
+
 class Artwork : public QWidget {
 public:
     explicit Artwork(const QString& path) : picture(path) {}
@@ -173,6 +177,7 @@ int main(int argc, char** argv) {
         if (closing || chosen.empty() || preparing) return;
         auto session = pt::launcher::InspectSession(chosen);
         if (previousRunning && session.activity == pt::launcher::Activity::Stopped) {
+            previousRunning = false; // Consume the transition before asynchronous refresh re-enters.
             lastFailure = "Game process exited. Open the game log or retry Play.";
             retry->show(); logButton->show();
             cachedInspection.reset();
@@ -349,7 +354,10 @@ int main(int argc, char** argv) {
     QObject::connect(cancelPreparation, &QPushButton::clicked, &window, [&] { confirmCancellation(false); });
     auto launchFlat = [&](bool tryAnyway) {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
+        launchPending = true;
+        if (controllerAdapter) controllerAdapter->releaseForHandoff();
         auto result = pt::launcher::PlayFlat(chosen, supported, tryAnyway);
+        launchPending = false;
         if (controllerAdapter) {
             if (result.activity == pt::launcher::Activity::Stopped) controllerAdapter->reopenAfterHandoff();
             else controllerAdapter->releaseForHandoff();
@@ -362,7 +370,9 @@ int main(int argc, char** argv) {
     QObject::connect(vr, &QPushButton::clicked, &window, [&] {
         lastFailure.clear(); preparationLog = false; logButton->setText("Open game log"); retry->hide(); logButton->hide();
         const bool tryAnyway = vrModeReadiness.state == pt::launcher::ReadinessState::Unknown;
-        launchPending = true; play->setEnabled(false); tryFlat->setEnabled(false); vr->setEnabled(false); vrReadiness->setText("Starting the VR attempt…");
+        launchPending = true;
+        if (controllerAdapter) controllerAdapter->releaseForHandoff();
+        play->setEnabled(false); tryFlat->setEnabled(false); vr->setEnabled(false); vrReadiness->setText("Starting the VR attempt…");
         const auto bundle = chosen;
         auto result = std::make_shared<pt::launcher::SessionState>();
         auto* launchThread = QThread::create([bundle, supported, tryAnyway, result] {
@@ -370,6 +380,8 @@ int main(int argc, char** argv) {
         });
         QObject::connect(launchThread, &QThread::finished, &window, [&, result] {
             launchPending = false;
+            if (controllerAdapter && result->activity == pt::launcher::Activity::Stopped)
+                controllerAdapter->reopenAfterHandoff();
             if (!closing) {
                 if (!result->error.isEmpty()) {
                     lastFailure = result->error; warning->setText(result->error); retry->show(); logButton->show();
@@ -389,6 +401,7 @@ int main(int argc, char** argv) {
         cachedInspection.reset(); refresh();
     });
     QObject::connect(resume, &QPushButton::clicked, &window, [&] {
+        if (controllerAdapter) controllerAdapter->releaseForHandoff();
         QString error; pt::launcher::ReturnToGame(pt::launcher::InspectSession(chosen), &error);
         if (!error.isEmpty()) warning->setText(error);
     });
@@ -436,7 +449,7 @@ int main(int argc, char** argv) {
     }
     bool vrControlRetried = false;
     if (!chosen.empty()) QTimer::singleShot(300, &window, [&, testMode] {
-        if (testMode == "--test-close-readiness" || testMode == "--test-close-launch") return;
+        if (testMode == "--test-close-readiness" || testMode == "--test-close-launch" || testMode.startsWith("--test-controller-")) return;
         if (testMode == "--test-flat-unknown-control") {
             auto* readinessWait = new QTimer(&window); readinessWait->setInterval(10);
             QObject::connect(readinessWait, &QTimer::timeout, &window, [&, readinessWait] {
@@ -502,8 +515,12 @@ int main(int argc, char** argv) {
     layout->addWidget(scroll, 3);
     window.show();
     controllerAdapter = new pt::launcher::ControllerAdapter(&window, [&] {
-        return chosen.empty() || pt::launcher::InspectSession(chosen).activity == pt::launcher::Activity::Stopped;
+        return !launchPending && (chosen.empty() || pt::launcher::InspectSession(chosen).activity == pt::launcher::Activity::Stopped);
     }, &window);
+#if defined(PT_LAUNCHER_TEST_BUILD) && defined(__linux__)
+    if (testMode == "--test-controller-flat" || testMode == "--test-controller-vr")
+        DriveControllerLaunch(&window, controllerAdapter, chosen, testMode.endsWith("-vr") ? vr : play);
+#endif
     if (argc == 3 && QString::fromLocal8Bit(argv[1]) == "--screenshot") {
         const QString output = QString::fromLocal8Bit(argv[2]);
         QTimer::singleShot(250, &window, [&window, output] {
