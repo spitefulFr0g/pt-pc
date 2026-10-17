@@ -11,15 +11,6 @@ on:
         description: Attach both tested bundles to a new draft prerelease
         type: boolean
         default: true
-  # Validate changes on the integration branch before installing the manual workflow on main.
-  push:
-    branches: [integration/launcher]
-    paths:
-      - '.github/workflows/launcher-preview.yml'
-      - 'launcher/**'
-      - 'tools/ci/*launcher_preview*.py'
-      - 'tools/ci/install_fsr_glslang.py'
-
 permissions:
   contents: read
 
