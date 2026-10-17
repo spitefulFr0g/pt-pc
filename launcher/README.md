@@ -203,13 +203,34 @@ focus during progress, and dismissal of the obsolete prompt after completion.
 All game archive contents are synthetic recognition fixtures, never playable
 data.
 
-Insufficient-space behavior is implemented as an available-space preflight but
-was not forced in this environment; the writable temporary filesystem had
-multiple GiB free. Windows/MSVC, native Wayland or SteamOS, clean packaged
-runtime behavior, and actual helper-process/GUI crash termination were not
-exercised by this ticket harness and remain pending. The journal recovery tests
-use controlled interrupted-state fixtures through the real public recovery
-operation.
+The escalation harness `launcher_preparation_process` now runs actual public
+preparation in disposable children and sends SIGKILL during copying, immediately
+after archive placement, after the settings backup rename, and after settings
+placement. A Linux-only LD_PRELOAD test library stops at successful rename
+boundaries; production has no fault-injection environment switches. Each case
+attempts concurrent Play/preparation/guarded writes while preparation holds the
+bundle lock, then uses public recovery and retry, asserting original source,
+previous archives/metadata/settings, player data, and unowned bytes survive.
+
+A real non-dumpable controlled process denies `/proc/PID/exe` inspection while
+leaving cmdline readable. This exposed a fail-open Linux activity check; the
+regression now verifies Uncertain and blocked Play/preparation/recovery/writes.
+A syscall fixture also reproduces ESRCH during procfs cmdline reading, found
+during a full-suite run, and verifies inspection safely handles process exit.
+The space check runs separately with `TMPDIR` on a Docker-owned 64 MiB tmpfs,
+asserts actual `std::filesystem::space` is below 3 GiB, and verifies the public
+preflight rejects preparation without changing source/player data or staging.
+No large allocation or host mount modification is needed.
+
+Committed escalation logs: `launcher/evidence/issue5-r2/`.
+External escalation evidence: `/tmp/pt-issue5-r2-red/ctest.log` records the uninspectable
+process regression failing before the source fix;
+`/tmp/pt-issue5-r2-proc-race-red/ctest.log` records the procfs race regression; `/tmp/pt-issue5-r2-final/`
+records all six CTest cases plus the separate real-space preflight. The exact
+noninteractive command is
+`launcher/run-issue5-acceptance.sh /tmp/pt-issue5-r2-final`.
+These source-level Linux controlled-process results do not establish packaged
+GUI/helper termination, Windows, native Wayland or SteamOS gates (#24/#26/#27).
 
 Red/green observations for the two defects found by these checks are recorded
 in `/tmp/pt-issue5-evidence/red-green.md` alongside the final run logs.
