@@ -1,5 +1,59 @@
 # Portable bundle inspection slice
 
+## Unsigned paired preview bundles
+
+The manual preview workflow builds the normal game and `pt_release` runtime first,
+then builds the launcher with the SHA-256 of that exact `pt_release` executable in
+`PT_SUPPORTED_LINUX_SHA256` or `PT_SUPPORTED_WINDOWS_SHA256`. The launcher build
+uses shared Qt 6.12.0. The full Linux preview build requires CMake 3.31.8,
+GCC/G++ 13, and `libvulkan-dev` in the Ubuntu 24.04 build environment; the
+standalone launcher still configures with CMake 3.28. Package one platform at
+a time:
+
+```sh
+cmake --install build/launcher --prefix build/launcher-stage
+export QT_ROOT=/path/to/Qt/6.12.0/gcc_64
+python3 tools/ci/package_launcher_preview.py --platform linux \
+  --runtime-build build/runtime --launcher-stage build/launcher-stage \
+  --out dist --version 0.0.0-preview.1 \
+  --revision "$(git rev-parse HEAD)"
+python3 tools/ci/smoke_launcher_preview.py \
+  --artifacts dist --platform linux --evidence build/preview-smoke
+```
+
+`--launcher-build build/launcher` can replace `--launcher-stage` and installs
+into a temporary stage; it reads the Qt prefix from that build's CMake cache.
+Windows uses `--platform windows`, `pt_release.exe`, a ZIP archive, and Qt's
+`windeployqt` with compiler runtime deployment. Linux requires `patchelf`,
+`dpkg-query`, `ldd`, and Qt's xcb and Wayland plugins. The Linux smoke check
+requires `xvfb-run` and starts the extracted launcher through xcb in a fresh
+path containing spaces. It checks the archive SHA-256 sidecar, every inventory
+hash, and screenshots from the actual QApplication event loop. The inventory
+records the runtime source hash, the supported hash compiled into the launcher,
+the Qt version, and file sizes/hashes. The package command fails if the launcher
+does not embed the exact runtime hash.
+
+The archive has `windows/pt.exe` or `linux/pt`, the launcher at its root
+(`pt-launcher.exe` on Windows or a `pt-launcher` entry script on Linux), Qt
+libraries/plugins, assets, licenses, and `preview-inventory.json`. The Linux
+script changes no global Qt or library environment; the game launched through
+PlayFlat inherits the normal system environment. The game runtime is staged by
+`tools/package.py` with no game files. The preview script removes the runtime's
+updater and stale runtime file list. These bundles are unsigned manual tests;
+PlayFlat passes `--no-update-check`, and upstream in-game updating is
+unsupported for this mixed bundle. Direct runtime launches should also pass
+`--no-update-check`. The archive includes `README-preview.md`, the project
+license, Qt LGPL/GPL exception texts, and runtime and platform dependency
+notices.
+
+After extraction, place your three extracted game archives in `CUSA01127` at
+the bundle root (`chunk1.psarc`, `texture.qar`, `pathid_list_ps4.bin`). Open the
+launcher and choose the extracted bundle root through **Game files**. The
+preview covers bundle inspection and flat launch with the matching runtime.
+Preparation, integrated settings, VR, controller features, secure updating,
+native Wayland, SteamOS/Hyprland/Gaming Mode, and gameplay remain unverified or
+pending. A passing CI smoke run is not a gameplay result.
+
 Build the standalone C++20 Qt Widgets launcher from `launcher/`; this target does not configure or link the game engine. Release builds require shared Qt 6.12.0. Copy `launcher/assets/` beside the executable when staging it. The included artwork and font notices must accompany distribution.
 
 Run `launcher/run-acceptance.sh [evidence-directory]` from a noninteractive shell with CMake, a C++20 compiler, zlib development files, and Qt 6.12.0 available through `CMAKE_PREFIX_PATH`. It configures, builds, runs the Qt event-loop fixture test, and saves logs; any failure returns nonzero. Fixtures are disposable and contain synthetic headers and player files only. Set `QT_QPA_PLATFORM=offscreen` for a headless run.
