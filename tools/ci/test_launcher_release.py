@@ -10,6 +10,14 @@ from smoke_launcher_preview import check
 
 
 class ReleaseContractTest(unittest.TestCase):
+    def test_version_metadata_cannot_shadow_cpp_version_header(self):
+        from launcher_release import REPO
+        # MSVC resolves <version> case-insensitively through launcher include dirs.
+        self.assertFalse(any(path.name.casefold() == 'version'
+                             for path in (REPO / 'launcher').iterdir()))
+        self.assertEqual((REPO / 'launcher/launcher-version.txt').read_text().strip(),
+                         '0.1.0')
+
     def test_stable_and_preview(self):
         for version, channel, tag, name in (
             ('0.1.0', 'stable', 'v0.1.0', 'pt-launcher-0.1.0-windows'),
