@@ -1,0 +1,187 @@
+name: Launcher preview
+
+on:
+  pull_request:
+    paths:
+      - "launcher/**"
+      - "installer/**"
+      - "tools/ci/**"
+      - "tools/package.py"
+      - ".github/workflows/launcher-preview.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Preview version (blank uses 0.1.0-preview.RUN_NUMBER)'
+        type: string
+        default: ''
+      create_draft:
+        description: Attach both tested bundles to a new draft prerelease
+        type: boolean
+        default: true
+permissions:
+  contents: read
+
+concurrency:
+  group: launcher-preview-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Validate preview version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          version = os.environ['REQUESTED_VERSION'] or '0.1.0-preview.' + os.environ['GITHUB_RUN_NUMBER']
+          if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+', version):
+              raise SystemExit('Use a version such as 0.1.0-preview.1')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
+
+  bundle:
+    needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-2022
+            qt_folder: msvc2022_64
+          - platform: linux
+            runner: ubuntu-24.04
+            qt_folder: gcc_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
+        with:
+          arch: x64
+      - name: Linux build and platform dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build g++-13 zlib1g-dev patchelf \
+            libvulkan-dev glslc libgl1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev \
+            libx11-dev libxcursor-dev libxext-dev libxi-dev libxrandr-dev libxinerama-dev \
+            libxfixes-dev libxss-dev libxtst-dev libdbus-1-dev libdrm-dev libgbm-dev \
+            libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
+            xvfb xauth xdotool openbox
+      - name: Cache pinned Qt SDK
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/qt
+          key: launcher-qt-${{ runner.os }}-6.12.0-${{ hashFiles('tools/ci/install_launcher_preview_qt.py') }}
+      - name: Cache Linux game dependencies
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: build/launcher-preview/game/_deps
+          key: launcher-linux-game-${{ runner.os }}-${{ hashFiles('cmake/**', 'CMakeLists.txt') }}
+      - name: Cache checksum-verified upstream archive
+        uses: actions/cache@v4
+        with:
+          path: build/launcher-preview/upstream-v1.0.5-${{ matrix.platform }}.zip
+          key: launcher-runtime-${{ matrix.platform }}-${{ hashFiles('tools/ci/fetch_launcher_preview_runtime.py') }}
+      - name: Install shared Qt 6.12.0
+        env:
+          PREVIEW_PLATFORM: ${{ matrix.platform }}
+          QT_FOLDER: ${{ matrix.qt_folder }}
+          QT_CACHE_HIT: ${{ steps.qt-cache.outputs.cache-hit }}
+        run: |
+          python -m pip install cmake==3.31.10 aqtinstall==3.3.0
+          if [ "$QT_CACHE_HIT" != true ]; then
+            python tools/ci/install_launcher_preview_qt.py --platform "$PREVIEW_PLATFORM" --output "$RUNNER_TEMP/qt"
+          fi
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          qt = Path(os.environ['RUNNER_TEMP']) / 'qt' / '6.12.0' / os.environ['QT_FOLDER']
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'CMAKE_PREFIX_PATH={qt}\nQT_ROOT={qt}\n')
+          with open(os.environ['GITHUB_PATH'], 'a') as output:
+              output.write(str(qt / 'bin') + '\n')
+          PY
+      - name: Build launcher and package the pinned upstream runtime
+        env:
+          PREVIEW_PLATFORM: ${{ matrix.platform }}
+          PREVIEW_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          python tools/ci/build_launcher_preview.py --platform "$PREVIEW_PLATFORM" \
+            --version "$PREVIEW_VERSION" --jobs 2
+      - name: Check extracted bundle startup
+        env:
+          PREVIEW_PLATFORM: ${{ matrix.platform }}
+        run: |
+          python tools/ci/smoke_launcher_preview.py --platform "$PREVIEW_PLATFORM" \
+            --artifacts dist/launcher-preview --evidence build/launcher-preview/evidence/package
+      - name: Retain build and packaged startup evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: launcher-preview-evidence-${{ matrix.platform }}
+          path: build/launcher-preview/evidence
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Retain verified bundles
+        uses: actions/upload-artifact@v7
+        with:
+          name: launcher-preview-bundle-${{ matrix.platform }}
+          path: dist/launcher-preview/*
+          if-no-files-found: error
+          retention-days: 14
+
+  draft:
+    if: github.event_name == 'workflow_dispatch' && inputs.create_draft
+    needs: [metadata, bundle]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: launcher-preview-bundle-*
+          merge-multiple: true
+          path: release-assets
+      - name: Create an unpublished draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Build evidence is retained separately; only immutable package files are attached.
+          mapfile -t assets < <(find release-assets -maxdepth 1 -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.sha256' -o -name '*inventory.json' \) | sort)
+          test "$(find release-assets -maxdepth 1 -name '*windows*.zip' | wc -l)" -eq 1
+          test "$(find release-assets -maxdepth 1 -name '*linux*.tar.gz' | wc -l)" -eq 1
+          cat > notes.md <<EOF
+          Portable Windows x64 and native Linux x86_64 previews of the current launcher and matching game runtime.
+
+          Select your supported P.T. fPKG, prepare it, then choose Play or Play VR. No separate extraction or system .NET SDK is needed. These unsigned portable previews preserve existing extracted-folder adoption. VR requires a compatible host OpenXR runtime; process startup does not establish headset presentation.
+
+          Supply your own game archives using the included instructions. CI checks compilation and extracted-package startup; gameplay and hardware testing remain pending.
+
+          Source commit: $GITHUB_SHA
+          Build and startup evidence: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          EOF
+          gh release create "launcher-v$PREVIEW_VERSION" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Launcher $PREVIEW_VERSION" --notes-file notes.md --draft --prerelease

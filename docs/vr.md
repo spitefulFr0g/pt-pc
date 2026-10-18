@@ -12,9 +12,11 @@ hardware. Expect problems those cannot show. It is off by default, and with it o
   Link app, Windows Mixed Reality, Varjo, Pimax, Monado) and a connected headset. Without them the game logs why and
   starts flat: `vr: off for this run: xrCreateInstance ... XR_ERROR_RUNTIME_UNAVAILABLE` with no runtime, `xrGetSystem
   ... XR_ERROR_FORM_FACTOR_UNAVAILABLE` with a runtime but no headset. The setting stays on, so the next start tries again.
-- The Khronos OpenXR loader `openxr_loader.dll` 1.1.63 ships next to `pt.exe` (Apache-2.0, text in `licenses/`). The build
-  downloads it and checks it by SHA-256 (`cmake/OpenXR.cmake`); `-DPT_OPENXR=OFF` builds without VR. The DLL is loaded
-  only when VR is on.
+- The Khronos OpenXR loader 1.1.63 ships beside the game runtime: `openxr_loader.dll` on Windows and
+  `libopenxr_loader.so.1` on Linux (Apache-2.0, with the SDK license texts in `licenses/`). Windows uses the pinned
+  loader binary; Linux builds the same pinned Khronos source release and stages it with the game. The Linux executable
+  searches its own bundle directory through `$ORIGIN`; no global loader or active-runtime registration is changed.
+  `-DPT_OPENXR=OFF` builds without VR. The loader is opened only for a VR launch.
 
 `pt.ini` `[vr]`:
 
@@ -100,9 +102,53 @@ In a menu the left stick is the D-pad. The prompts show A, B, X and Y. Snap turn
 
 ## Testing without a headset
 
-`tools/xr_test_runtime` is a headless OpenXR runtime: a DLL and a manifest built into `build/<name>/xr_test_runtime/`
+`tools/xr_test_runtime` is a headless OpenXR runtime: a shared library (`.dll` on Windows, `.so` on Linux) and a manifest built into `build/<name>/xr_test_runtime/`
 (not shipped), selected for one process with `XR_RUNTIME_JSON`. It installs nothing and opens no window. It implements
 OpenXR 1.0 with `XR_KHR_vulkan_enable2` for one simulated headset and a Touch controller pair, plays a script of head
 and controller poses and inputs, writes the layers the game submits as PNG files, and logs anything it can check as
 `VIOLATION` lines. `tools/walkthrough.py --vr` plays the scripted routes in VR against it. If you have a headset and
 try the mode, an issue with your `pt.log` is welcome.
+
+## Linux wrapper build and package contract
+
+The v1.0.5 Linux portable archive was built without OpenXR. Adding a loader to
+that binary cannot enable VR. Build the existing source with `-DPT_OPENXR=ON`
+(`-DPT_UPSCALERS=OFF` is supported for this candidate). No engine edits are
+required: the engine source matches upstream revision
+`60fe8b324aca24c264e89378ae0d2c61f3a674af`. Use GCC 13 or newer and the usual
+Vulkan/SDL build prerequisites. CMake pins Khronos 1.1.63 source archive SHA-256
+`a3b97a36f11abe256a7ea1668a0a468aac9b738e94bea6b468f0ae31ad537a46`;
+an explicitly enabled build fails if its required SDK inputs are unavailable.
+
+For the Linux bundle owner (#25), stage the resulting `pt` (or `pt_release`)
+and `libopenxr_loader.so.1` together under `linux/`, preserving executable
+permissions. Keep the executable's `$ORIGIN` RUNPATH, the matching build assets
+and shared dependencies, and both Khronos license texts from
+`<build>/_deps/upscaler-sdks/openxr-1.1.63/{LICENSE,LICENSES/MIT.txt}`. The loader
+needs host libc/libm/libpthread/libdl as reported by `ldd`; host graphics drivers
+and the user's vendor OpenXR runtime remain prerequisites. Do not ship the
+headless test runtime or its registration as a player runtime. Configure the
+launcher with `PT_SUPPORTED_LINUX_SHA256=<sha256 of this pt>` and
+`PT_SUPPORTED_LINUX_VR=ON`; retain source revision, build options, compiler
+identity and binary/loader hashes in runtime provenance rather than attributing
+the rebuilt binary to the unchanged upstream release archive.
+
+The launcher uses the bundle runtime directory as cwd and removes inherited
+`LD_LIBRARY_PATH`/`LD_PRELOAD` for game processes. It retains `XR_RUNTIME_JSON`
+and XDG settings for the user's runtime selection, and changes no global
+registration. The readiness check inspects the bundled loader and registration;
+it does not claim a working headset. Missing loader/runtime prerequisites leave
+flat play available; explicit runtime fallback is displayed through the log.
+
+`launcher/run-linux-vr-check.sh <evidence-directory>` builds with the supported
+options and runs the retained launcher checks plus one controlled OpenXR loader
+check. It supports reuse of its build directories. It currently uses Docker,
+the preview build image, shared Qt SDK and CMake tools described in the script
+(overridable with `PT_ISSUE12_*` variables). The controlled executable exercises
+the same `dlopen`/`xrCreateInstance` boundary through launcher process handling,
+using the real Khronos loader and existing headless runtime. It checks success,
+corrupt/missing loader and missing/failing runtime registration, and rejects
+inherited library injection. It also builds and hashes the real game executable
+and checks its RUNPATH. Synthetic archive headers are sufficient for the
+launcher boundary; they cannot run the game. Game rendering, gameplay and actual
+headset presentation remain unverified.

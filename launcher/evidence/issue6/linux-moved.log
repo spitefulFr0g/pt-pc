@@ -1,0 +1,6 @@
+Extracting chunk1.psarc
+Extracting texture.qar
+Extracting pathid_list_ps4.bin
+warning: chunk1.psarc not at the package root; using /uroot/data/v2_chunk1.psarc
+warning: texture.qar not at the package root; using /uroot/data/v2_texture.qar
+warning: pathid_list_ps4.bin not at the package root; using /uroot/data/v2_pathid_list_ps4.bin

@@ -1,0 +1,20 @@
+Internal ctest changing into directory: /evidence/build.VH4KhI
+Test project /evidence/build.VH4KhI
+    Start 4: launcher_settings_dialog
+1/1 Test #4: launcher_settings_dialog .........Subprocess aborted***Exception:   0.24 sec
+Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+If this causes problems, reconfigure your locale. See the locale(1) manual
+for more information.
+Fontconfig error: No writable cache directories
+Fontconfig error: No writable cache directories
+This plugin does not support propagateSizeHints()
+pt_launcher_settings_dialog_test: /repo/launcher/tests/settings_dialog_test.cpp:39: int main(int, char**): Assertion `!qobject_cast<QStandardItemModel*>(graphics->model())->item(4)->isEnabled()' failed.
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.24 sec
+
+The following tests FAILED:
+	  4 - launcher_settings_dialog (Subprocess aborted)

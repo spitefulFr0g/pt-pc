@@ -1,0 +1,10 @@
+Issue #4 Qt 6.12 acceptance, 2026-10-17
+
+Command: launcher/run-issue4-qt612-container.sh
+Base: integration/launcher d5d9bad3018cde2b14f3bb7b98328e6d87b75f8f
+Container: ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+Toolkit: Qt 6.12.0 linux_gcc_64 installed with aqtinstall 3.3.0; see the issue3-qt612 setup recipe.
+Procedure: the command installs GCC/CMake/zlib/Qt runtime and Xvfb/Openbox/xdotool dependencies in the container, configures and builds the standalone launcher, then runs CTest. The session fixture clicks the actual Qt Play control and checks the visible Return/error controls, starts real processes, closes and crashes the GUI, reopens it, checks arguments/lifetime/errors and preserved files, exercises the public mutation guard, and covers independent bundles. The window fixture uses Xvfb/Openbox/xcb and a real Qt game-process window for Return to game.
+Expected: all three tests pass; command exits zero. Logs: configure.log, build.log, ctest.log, container.log. Dependency versions: dependencies.txt. Binary hashes: SHA256SUMS.
+Scope: controlled synthetic process and window fixtures; no proprietary game, physical gameplay, Steam Deck, headset, native compositor, or packaged release artifact is claimed.
+Pending: Windows 11 MSVC 2022/Qt 6.12.0 build and native execution. The accessible environment is Debian WSL and has no cl.exe/MSVC x64 toolset or Windows Qt SDK; issue3-qt612/windows-provisioning.txt records the prior Windows host tooling audit. Native Linux Wayland/Gamescope and clean packaged xcb/Wayland smoke remain pending because this environment exposes WSLg rather than a native target compositor/package. An approved release runtime hash inventory is not yet present, so default builds keep Play disabled for unverified runtimes.

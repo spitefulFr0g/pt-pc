@@ -1,0 +1,20 @@
+Internal ctest changing into directory: /evidence/build
+Test project /evidence/build
+    Start 7: launcher_controller
+1/1 Test #7: launcher_controller ..............Subprocess aborted***Exception:   0.26 sec
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+pt_launcher_controller_test: /repo/launcher/tests/controller_test.cpp:51: int main(int, char**): Assertion `choices.currentIndex() == 1 && !QApplication::activePopupWidget()' failed.
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.26 sec
+
+The following tests FAILED:
+	  7 - launcher_controller (Subprocess aborted)
+Errors while running CTest

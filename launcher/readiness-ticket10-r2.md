@@ -1,0 +1,15 @@
+# Readiness repair #10, round 2
+
+Run `launcher/run-issue10-qt612-container.sh /tmp/pt-issue10-r2` from the checkout. The harness configures/builds Qt 6.12 in the documented container, runs all applicable CTest cases, saves logs and reproduction details, and propagates build/test failures.
+
+Host manifest/registration and inventory inspection runs in the shipped `pt-launcher-readiness-probe` next to the GUI. `CheckReadiness` uses an explicit work deadline (1–2000 ms), a 100 ms cleanup allowance, and at most 100 ms additional forced-helper reaping. Manifest reads stop at 64 KiB + 1; inventory and result output have limits. Linux helpers have a private process session so forced cancellation also kills their inventory child. Normal timeout kills and reaps the inventory before the helper exits. A missing helper or inconclusive discovery yields Unknown, never permission to claim headset suitability.
+
+The GUI workers copy inputs/results and never call into a window from a worker. Qt context-bound finished delivery updates the UI. Closing hides the window and drains active readiness/launch work before the GUI event loop exits; it does not stop a game that the public launch operation started. The separate Try Play anyway control preserves the stable Play label, and all launch controls disable during pending work/preparation. Routine ready/running text is omitted.
+
+The public tests cover FIFO timeout, oversized/unreadable registration, output flooding, controlled `/bin/sleep` timeout with elapsed lower/upper limits and process disappearance, XDG architecture precedence, false system-inventory blocker, independent flat play, and Qt close during a real slow readiness/launch probe. Existing session tests verify exact VR/flat arguments, saved preference preservation, duplicate protection and running-game survival.
+
+Primary discovery reference: Khronos OpenXR-SDK-Source `src/loader/manifest_file.cpp`, inspected 2026-10-17:
+https://github.com/KhronosGroup/OpenXR-SDK-Source/blob/main/src/loader/manifest_file.cpp
+`FindManifestFiles` applies XR_RUNTIME_JSON before platform discovery. `FindXDGConfigFile` checks XDG_CONFIG_HOME, XDG_CONFIG_DIRS, compiled system locations, preferring active_runtime.x86_64.json to the undecorated filename at each location. Bare library names use dynamic-loader search paths. Custom compiled loader search paths and absence from ldconfig cannot prove absence, so inconclusive results remain Unknown. No XR instance is created and no global selection is changed.
+
+Evidence limits: source/container Qt event-loop and controlled-process checks do not validate Windows packaged execution, a native target package, GPU driver compatibility, Steam presentation, or physical headset presentation. Native package gates 24/26/27 remain required automated package checks. Tickets 11 (fallback/outcomes) and 12 (Linux loader build/package) remain separate. Like any userspace timeout, signals cannot guarantee immediate reaping of a process trapped in an uninterruptible kernel I/O state; controlled FIFO/slow-child checks exercise interruptible waits and actual cleanup.

@@ -1,0 +1,33 @@
+Internal ctest changing into directory: /evidence/build.qK18X6
+Test project /evidence/build.qK18X6
+    Start 1: launcher_inspection
+1/9 Test #1: launcher_inspection ..............   Passed    0.25 sec
+    Start 2: launcher_readiness
+2/9 Test #2: launcher_readiness ...............   Passed    0.28 sec
+    Start 3: launcher_settings
+3/9 Test #3: launcher_settings ................Subprocess aborted***Exception:   0.07 sec
+Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+If this causes problems, reconfigure your locale. See the locale(1) manual
+for more information.
+pt_launcher_settings_test: /repo/launcher/settings_test.cpp:50: int main(int, char**): Assertion `pt::launcher::ReadDisplaySettings(root,pt::launcher::Platform::Linux,supported).value.graphicsPreset==pt::GraphicsPreset::Ultra' failed.
+
+    Start 4: launcher_settings_dialog
+4/9 Test #4: launcher_settings_dialog .........   Passed    1.06 sec
+    Start 5: launcher_session
+5/9 Test #5: launcher_session .................   Passed    4.81 sec
+    Start 6: launcher_window
+6/9 Test #6: launcher_window ..................   Passed    0.47 sec
+    Start 7: launcher_preparation
+7/9 Test #7: launcher_preparation .............   Passed    0.32 sec
+    Start 8: launcher_preparation_ui
+8/9 Test #8: launcher_preparation_ui ..........   Passed    2.06 sec
+    Start 9: launcher_preparation_process
+9/9 Test #9: launcher_preparation_process .....   Passed    0.43 sec
+
+89% tests passed, 1 tests failed out of 9
+
+Total Test time (real) =   9.74 sec
+
+The following tests FAILED:
+	  3 - launcher_settings (Subprocess aborted)

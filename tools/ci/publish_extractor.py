@@ -16,6 +16,7 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+LIBORBIS_REVISION = "643477263b2644e0803e0f58b8726ea4e3f3b7d4"
 
 p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 p.add_argument("--liborbis", type=Path, required=True, help="the LibOrbisPkg source (maxton/LibOrbisPkg, never changed here)")
@@ -23,9 +24,14 @@ p.add_argument("--rid", required=True, help="the .NET runtime: win-x64, linux-x6
 p.add_argument("--out", type=Path, required=True)
 p.add_argument("--notices", type=Path)
 p.add_argument("--single-file", action="store_true")
+p.add_argument("--source-revision", default=LIBORBIS_REVISION,
+               help=f"required LibOrbisPkg Git revision (default: {LIBORBIS_REVISION})")
 a = p.parse_args()
 if not (a.liborbis / "LibOrbisPkg.Core" / "LibOrbisPkg.Core.csproj").is_file():
     sys.exit(f"{a.liborbis} is not the LibOrbisPkg source (LibOrbisPkg.Core/LibOrbisPkg.Core.csproj)")
+revision = subprocess.run(["git", "-C", str(a.liborbis), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+if revision != a.source_revision:
+    sys.exit(f"LibOrbisPkg revision mismatch: expected {a.source_revision}, got {revision}")
 out = a.out.resolve()
 notices = (a.notices or out.with_name(out.name + "-notices")).resolve()
 source = out.with_name(out.name + "-liborbis-src")
@@ -57,7 +63,7 @@ with zipfile.ZipFile(notices / "LibOrbisPkg-corresponding-source.zip", "w", zipf
         for file in sorted(root.rglob("*")):
             if file.is_file() and not {"bin", "obj", ".git"}.intersection(file.relative_to(root).parts):
                 z.write(file, prefix + "/" + file.relative_to(root).as_posix())
-    z.writestr("BUILD.txt", f"python tools/ci/publish_extractor.py --liborbis <LibOrbisPkg source> --rid {a.rid}"
+    z.writestr("BUILD.txt", f"python tools/ci/publish_extractor.py --liborbis <LibOrbisPkg source> --source-revision {revision} --rid {a.rid}"
                             f"{' --single-file' if a.single_file else ''}, which runs dotnet publish PT.PkgExtract/Extractor.csproj -c Release "
                             f"-r {a.rid} --self-contained true -p:LibOrbisSource=<this LibOrbisPkg folder>. Library and wrapper are LGPL-3.0-or-later. "
                             "Changes: net10.0/modern SDK, PFSC decompression uses ReadExactly and chunked reads use the current chunk length. "

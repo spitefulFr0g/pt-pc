@@ -1,0 +1,6 @@
+Windows validation status (2026-10-17)
+
+- Host: Windows 11 Pro, build 26200; Visual Studio Community 17.14.27 is installed.
+- `cl.exe` and `VC/Tools/MSVC` are absent. The current Windows account is not an administrator.
+- Adding the MSVC component requires elevation; no UAC prompt or manual user action was requested. The MSVC/Qt Windows build remains pending.
+- No Windows Qt 6.12.0 kit or Windows build/run/package result is claimed.

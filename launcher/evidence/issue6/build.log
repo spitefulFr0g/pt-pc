@@ -1,0 +1,117 @@
+[  2%] Building CXX object CMakeFiles/pt_launcher_inspection.dir/inspection.cpp.o
+[  5%] Building CXX object CMakeFiles/pt_launcher_game_window_fixture.dir/tests/game_window_fixture.cpp.o
+[  7%] Linking CXX executable pt_launcher_game_window_fixture
+[  7%] Built target pt_launcher_game_window_fixture
+[ 10%] Building CXX object CMakeFiles/pt_preparation_fault_adapter.dir/tests/preparation_fault_adapter.cpp.o
+[ 13%] Linking CXX shared library libpt_preparation_fault_adapter.so
+[ 13%] Built target pt_preparation_fault_adapter
+[ 15%] Linking CXX static library libpt_launcher_inspection.a
+[ 15%] Built target pt_launcher_inspection
+[ 18%] Building CXX object CMakeFiles/pt_launcher_inspection_test.dir/tests/inspection_test.cpp.o
+[ 21%] Building CXX object CMakeFiles/pt_launcher_readiness_probe.dir/readiness.cpp.o
+[ 23%] Linking CXX executable pt-launcher-readiness-probe
+[ 23%] Built target pt_launcher_readiness_probe
+[ 26%] Building CXX object CMakeFiles/pt_launcher_readiness.dir/readiness.cpp.o
+[ 28%] Linking CXX executable pt_launcher_inspection_test
+[ 28%] Built target pt_launcher_inspection_test
+[ 31%] Linking CXX static library libpt_launcher_readiness.a
+[ 31%] Built target pt_launcher_readiness
+[ 36%] Building CXX object CMakeFiles/pt_launcher_session.dir/session.cpp.o
+[ 36%] Building CXX object CMakeFiles/pt_launcher_readiness_test.dir/tests/readiness_test.cpp.o
+[ 39%] Linking CXX static library libpt_launcher_session.a
+[ 39%] Built target pt_launcher_session
+[ 42%] Building CXX object CMakeFiles/pt_launcher_preparation.dir/preparation.cpp.o
+[ 44%] Linking CXX executable pt_launcher_readiness_test
+[ 44%] Built target pt_launcher_readiness_test
+[ 47%] Building CXX object CMakeFiles/pt_launcher_settings.dir/settings.cpp.o
+[ 50%] Linking CXX static library libpt_launcher_settings.a
+[ 50%] Built target pt_launcher_settings
+[ 52%] Building CXX object CMakeFiles/pt_launcher_session_test.dir/tests/session_test.cpp.o
+[ 55%] Linking CXX static library libpt_launcher_preparation.a
+[ 55%] Built target pt_launcher_preparation
+[ 57%] Building CXX object CMakeFiles/pt_launcher_window_test.dir/tests/window_test.cpp.o
+[ 60%] Linking CXX executable pt_launcher_session_test
+[ 60%] Built target pt_launcher_session_test
+[ 63%] Building CXX object CMakeFiles/pt_launcher_preparation_test.dir/tests/preparation_test.cpp.o
+[ 65%] Linking CXX executable pt_launcher_window_test
+[ 65%] Built target pt_launcher_window_test
+[ 68%] Building CXX object CMakeFiles/pt_launcher_preparation_process_test.dir/tests/preparation_process_test.cpp.o
+In file included from /repo/launcher/tests/preparation_test.cpp:1:
+/repo/launcher/tests/preparation_fixture.h: In constructor 'Fixture::Fixture()':
+/repo/launcher/tests/preparation_fixture.h:69:43: warning: 'std::filesystem::__cxx11::path std::filesystem::__cxx11::u8path(const _Source&) [with _Source = const char*; _Require = path; _CharT = char]' is deprecated: use 'path((const char8_t*)&*source)' instead [-Wdeprecated-declarations]
+   69 |             const auto helper = fs::u8path(staged);
+      |                                 ~~~~~~~~~~^~~~~~~~
+In file included from /usr/include/c++/13/filesystem:49,
+                 from /repo/launcher/inspection.h:2,
+                 from /repo/launcher/preparation.h:2,
+                 from /repo/launcher/tests/preparation_fixture.h:2:
+/usr/include/c++/13/bits/fs_path.h:843:5: note: declared here
+  843 |     u8path(const _Source& __source)
+      |     ^~~~~~
+/repo/launcher/tests/preparation_test.cpp: In function 'int main()':
+/repo/launcher/tests/preparation_test.cpp:120:42: warning: 'std::filesystem::__cxx11::path std::filesystem::__cxx11::u8path(const _Source&) [with _Source = const char*; _Require = path; _CharT = char]' is deprecated: use 'path((const char8_t*)&*source)' instead [-Wdeprecated-declarations]
+  120 |         auto sourceBytes = get(fs::u8path(pkg));
+      |                                ~~~~~~~~~~^~~~~
+/usr/include/c++/13/bits/fs_path.h:843:5: note: declared here
+  843 |     u8path(const _Source& __source)
+      |     ^~~~~~
+/repo/launcher/tests/preparation_test.cpp:121:53: warning: 'std::filesystem::__cxx11::path std::filesystem::__cxx11::u8path(const _Source&) [with _Source = const char*; _Require = path; _CharT = char]' is deprecated: use 'path((const char8_t*)&*source)' instead [-Wdeprecated-declarations]
+  121 |         auto result = PrepareGame(f.root, fs::u8path(pkg), f.supported);
+      |                                           ~~~~~~~~~~^~~~~
+/usr/include/c++/13/bits/fs_path.h:843:5: note: declared here
+  843 |     u8path(const _Source& __source)
+      |     ^~~~~~
+In file included from /usr/include/c++/13/cassert:44,
+                 from /repo/launcher/tests/preparation_fixture.h:10:
+/repo/launcher/tests/preparation_test.cpp:126:30: warning: 'std::filesystem::__cxx11::path std::filesystem::__cxx11::u8path(const _Source&) [with _Source = const char*; _Require = path; _CharT = char]' is deprecated: use 'path((const char8_t*)&*source)' instead [-Wdeprecated-declarations]
+  126 |         assert(get(fs::u8path(pkg)) == sourceBytes);
+      |                    ~~~~~~~~~~^~~~~
+/usr/include/c++/13/bits/fs_path.h:843:5: note: declared here
+  843 |     u8path(const _Source& __source)
+      |     ^~~~~~
+In file included from /repo/launcher/tests/preparation_process_test.cpp:1:
+/repo/launcher/tests/preparation_fixture.h: In constructor 'Fixture::Fixture()':
+/repo/launcher/tests/preparation_fixture.h:69:43: warning: 'std::filesystem::__cxx11::path std::filesystem::__cxx11::u8path(const _Source&) [with _Source = const char*; _Require = path; _CharT = char]' is deprecated: use 'path((const char8_t*)&*source)' instead [-Wdeprecated-declarations]
+   69 |             const auto helper = fs::u8path(staged);
+      |                                 ~~~~~~~~~~^~~~~~~~
+In file included from /usr/include/c++/13/filesystem:49,
+                 from /repo/launcher/inspection.h:2,
+                 from /repo/launcher/preparation.h:2,
+                 from /repo/launcher/tests/preparation_fixture.h:2:
+/usr/include/c++/13/bits/fs_path.h:843:5: note: declared here
+  843 |     u8path(const _Source& __source)
+      |     ^~~~~~
+/repo/launcher/tests/preparation_process_test.cpp: In function 'int main(int, char**)':
+/repo/launcher/tests/preparation_process_test.cpp:75:53: warning: 'std::filesystem::__cxx11::path std::filesystem::__cxx11::u8path(const _Source&) [with _Source = std::__cxx11::basic_string<char>; _Require = path; _CharT = char]' is deprecated: use 'path((const char8_t*)&*source)' instead [-Wdeprecated-declarations]
+   75 |         auto result = PrepareGame(f.root, fs::u8path(pkg), f.supported,
+      |                                           ~~~~~~~~~~^~~~~
+/usr/include/c++/13/bits/fs_path.h:843:5: note: declared here
+  843 |     u8path(const _Source& __source)
+      |     ^~~~~~
+In file included from /usr/include/c++/13/cassert:44,
+                 from /repo/launcher/tests/preparation_fixture.h:10:
+/repo/launcher/tests/preparation_process_test.cpp:79:30: warning: 'std::filesystem::__cxx11::path std::filesystem::__cxx11::u8path(const _Source&) [with _Source = std::__cxx11::basic_string<char>; _Require = path; _CharT = char]' is deprecated: use 'path((const char8_t*)&*source)' instead [-Wdeprecated-declarations]
+   79 |         assert(get(fs::u8path(pkg)) == QByteArray("\x7f" "CNT\0", 4));
+      |                    ~~~~~~~~~~^~~~~
+/usr/include/c++/13/bits/fs_path.h:843:5: note: declared here
+  843 |     u8path(const _Source& __source)
+      |     ^~~~~~
+[ 71%] Linking CXX executable pt_launcher_preparation_test
+[ 71%] Built target pt_launcher_preparation_test
+[ 73%] Building CXX object CMakeFiles/pt_launcher_settings_dialog.dir/settings_dialog.cpp.o
+[ 76%] Linking CXX executable pt_launcher_preparation_process_test
+[ 76%] Built target pt_launcher_preparation_process_test
+[ 78%] Building CXX object CMakeFiles/pt_launcher_settings_test.dir/settings_test.cpp.o
+[ 81%] Linking CXX static library libpt_launcher_settings_dialog.a
+[ 81%] Built target pt_launcher_settings_dialog
+[ 84%] Building CXX object CMakeFiles/pt_launcher.dir/main.cpp.o
+[ 86%] Linking CXX executable pt_launcher_settings_test
+[ 86%] Built target pt_launcher_settings_test
+[ 89%] Building CXX object CMakeFiles/pt_launcher_settings_dialog_test.dir/tests/settings_dialog_test.cpp.o
+[ 92%] Linking CXX executable pt-launcher
+[ 94%] Linking CXX executable pt_launcher_settings_dialog_test
+[ 94%] Built target pt_launcher
+[ 97%] Building CXX object CMakeFiles/pt_launcher_ui_test_app.dir/main.cpp.o
+[ 97%] Built target pt_launcher_settings_dialog_test
+[100%] Linking CXX executable pt_launcher_ui_test_app
+[100%] Built target pt_launcher_ui_test_app

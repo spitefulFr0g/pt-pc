@@ -56,6 +56,13 @@ add_custom_target(pt_version
   BYPRODUCTS "${CMAKE_BINARY_DIR}/generated/pt_version.h")
 
 add_library(pt_engine STATIC ${PT_ENGINE_SOURCES} ${PT_GAME_SOURCES})
+# The platform stub returns unique_ptr<FrameGeneration> while upscale.h only
+# forward-declares the type. GCC needs the complete class at the return site;
+# keep this narrow compile-only workaround in build integration, not game source.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set_source_files_properties(src/engine/render/upscale/metalfx_stub.cpp PROPERTIES
+    COMPILE_OPTIONS "-include;${CMAKE_SOURCE_DIR}/src/engine/render/upscale/frame_generation.h")
+endif()
 # Game+ (docs/gameplay.md, Game+): the content a finished game unlocks, ON since 1.0 (every release ships it). OFF builds keep
 # it inert (the save still stores the finish tag and count, nothing else changes). The first configure takes the default from
 # the environment variable PT_GAMEPLUS.

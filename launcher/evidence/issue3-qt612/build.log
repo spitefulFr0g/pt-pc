@@ -1,0 +1,5 @@
+[ 33%] Built target pt_launcher_inspection
+[ 66%] Linking CXX executable pt_launcher
+[ 66%] Linking CXX executable pt_launcher_inspection_test
+[ 83%] Built target pt_launcher_inspection_test
+[100%] Built target pt_launcher
