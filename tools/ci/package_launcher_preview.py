@@ -20,6 +20,7 @@ EXCLUDED_LINUX = re.compile(r"^(lib(c|m|pthread|dl|rt|resolv|util|nss_.*|anl)\.s
 FORBIDDEN = {"chunk1.psarc", "texture.qar", "pathid_list_ps4.bin", "pt-updater", "pt-updater.exe"}
 FORBIDDEN_SUFFIXES = {".pkg", ".psarc", ".qar", ".self", ".pdb", ".ilk", ".pem", ".p12", ".pfx", ".key"}
 QT_LICENSES = ("LGPL-3.0-only.txt", "GPL-3.0-only.txt", "Qt-GPL-exception-1.0.txt")
+LINUX_AUDIO_SONAMES = ("libasound.so.2", "libpulse.so.0", "libpipewire-0.3.so.0")
 
 
 def digest(path):
@@ -59,6 +60,24 @@ def qt_version(root):
     match = re.search(r'set\(PACKAGE_VERSION "([0-9.]+)"\)', config.read_text(errors="replace"))
     require(match, f"cannot determine Qt version from {config}")
     return match.group(1)
+
+
+def require_linux_audio(executable):
+    # SDL is linked statically and dlopens each audio backend it was configured
+    # with; a build host without the ALSA, PulseAudio and PipeWire headers yields
+    # a game whose only audio driver is "dummy", so it starts silently.
+    data = executable.read_bytes()
+    missing = [name for name in LINUX_AUDIO_SONAMES if name.encode("ascii") not in data]
+    require(not missing, f"Linux runtime was built without SDL audio backends {missing}; install their -dev packages")
+
+
+def require_isolated_game_directory(root):
+    # The game's RUNPATH is $ORIGIN, so SDL's dlopen of libwayland-client, libX11
+    # and libdbus resolves beside pt. Build-host copies there are then reused by
+    # the host's Mesa Vulkan driver, which fails to load against them (newer
+    # Mesa needs wl_display_create_queue_with_name) and leaves no Vulkan device.
+    shadowed = sorted(p.name for p in (root / "lib").iterdir() if (root / "linux" / p.name).exists())
+    require(not shadowed, f"launcher libraries beside the game runtime would shadow host libraries: {shadowed}")
 
 
 def linux_deploy(root, qt):
@@ -133,11 +152,7 @@ def linux_deploy(root, qt):
         subprocess.run(["patchelf", "--set-rpath", "$ORIGIN/../../../lib", str(plugin)], check=True)
     for library in libdir.iterdir():
         subprocess.run(["patchelf", "--set-rpath", "$ORIGIN", str(library)], check=True)
-    # Keep pinned runtime bytes unchanged. Its existing $ORIGIN lookup uses
-    # private copies beside the game, independent of launcher Qt libraries.
-    for library in libdir.iterdir():
-        if not library.name.startswith("libQt6"):
-            shutil.copy2(library, root / "linux" / library.name)
+    require_isolated_game_directory(root)
     notices = root / "notices/linux-dependencies"
     notices.mkdir(parents=True)
     for package in sorted(distro_packages):
@@ -234,6 +249,7 @@ def main():
         if args.platform == "linux":
             require(os.access(helper, os.X_OK), "Linux package extraction helper is not executable")
             require(os.access(executable, os.X_OK), "Linux runtime is not executable")
+            require_linux_audio(executable)
             loader = destination / "libopenxr_loader.so.1"
             require(loader.is_file() and digest(loader) == origin.get("openxr_loader_sha256"),
                     "Linux OpenXR loader missing or differs from build provenance")

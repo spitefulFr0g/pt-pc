@@ -106,3 +106,27 @@ class ReleaseContractTest(unittest.TestCase):
                     self.assertEqual((data['version'], data['tag']), (version, identity(version)['tag']))
                 self.assertEqual((out / (archive.name + '.sha256')).read_text(),
                                  hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n')
+
+    def test_linux_runtime_needs_sdl_audio_backends(self):
+        import package_launcher_preview as package
+        with tempfile.TemporaryDirectory() as tmp:
+            pt = Path(tmp) / 'pt'
+            pt.write_bytes(b'\0dummy\0libpulse.so.0\0')
+            with self.assertRaisesRegex(ValueError, 'libasound.so.2.*libpipewire-0.3.so.0'):
+                package.require_linux_audio(pt)
+            pt.write_bytes(b'\0'.join(name.encode() for name in package.LINUX_AUDIO_SONAMES))
+            package.require_linux_audio(pt)
+
+    def test_launcher_libraries_stay_out_of_game_directory(self):
+        import package_launcher_preview as package
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for folder in ('lib', 'linux'):
+                (root / folder).mkdir()
+            for name in ('libwayland-client.so.0', 'libQt6Core.so.6'):
+                (root / 'lib' / name).write_text('fixture')
+            (root / 'linux' / 'libopenxr_loader.so.1').write_text('fixture')
+            package.require_isolated_game_directory(root)
+            (root / 'linux' / 'libwayland-client.so.0').write_text('fixture')
+            with self.assertRaisesRegex(ValueError, 'libwayland-client.so.0'):
+                package.require_isolated_game_directory(root)
