@@ -81,6 +81,7 @@ jobs:
             libvulkan-dev glslc libgl1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev \
             libx11-dev libxcursor-dev libxext-dev libxi-dev libxrandr-dev libxinerama-dev \
             libxfixes-dev libxss-dev libxtst-dev libdbus-1-dev libdrm-dev libgbm-dev \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev \
             libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             xvfb xauth xdotool openbox
