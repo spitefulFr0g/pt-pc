@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   app:
-    # Launcher previews have their own Windows/Linux packages and version namespace.
-    if: github.event_name != 'release' || !startsWith(github.event.release.tag_name, 'launcher-v')
+    # Wrapper previews and the first stable wrapper release have Windows/Linux packages.
+    if: github.event_name != 'release' || (!startsWith(github.event.release.tag_name, 'launcher-v') && github.event.release.tag_name != 'v0.1.0')
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +88,7 @@ jobs:
             dist/P.T.PC.Port-macOS-${{ matrix.arch }}.dmg
 
   release:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' && !startsWith(github.event.release.tag_name, 'launcher-v') && github.event.release.tag_name != 'v0.1.0'
     needs: app
     runs-on: ubuntu-latest
     steps:

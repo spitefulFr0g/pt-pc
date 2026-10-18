@@ -9,8 +9,10 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 
 from fetch_launcher_preview_runtime import RELEASE_SOURCE_REVISION
+from launcher_release import identity
 
 REPO = Path(__file__).resolve().parents[2]
 ZLIB_REVISION = "da607da739fa6047df13e66a2af6b8bec7c2a498"  # zlib 1.3.2
@@ -29,23 +31,47 @@ def main():
         parser.error("Build each launcher natively on its corresponding runner")
     if platform.machine().lower() not in ("amd64", "x86_64") or args.jobs < 1:
         parser.error("Use an x86_64 host and a positive --jobs count")
+    identity(args.version)
     work = args.work.resolve()
     evidence = work / "evidence"
     evidence.mkdir(parents=True, exist_ok=True)
     launcher, stage, runtime = work / "launcher", work / "launcher-stage", work / "runtime-stage"
     env = os.environ.copy()
+    cache_args = []
+    if args.platform == "linux" and env.get("CCACHE_DIR"):
+        ccache = shutil.which("ccache")
+        if not ccache:
+            raise RuntimeError("CCACHE_DIR is configured but ccache is unavailable")
+        env.update(CCACHE_COMPILERCHECK="content", CCACHE_BASEDIR=str(REPO),
+                   CCACHE_MAXSIZE="2G")
+        cache_args = [f"-DCMAKE_{language}_COMPILER_LAUNCHER={ccache}"
+                      for language in ("C", "CXX")]
+    timings = []
     with (evidence / "build.log").open("w", encoding="utf-8") as log:
-        def run(*command):
+        def run(*command, phase="setup"):
             command = [str(part) for part in command]
             print("+", command, flush=True)
             log.write(repr(command) + "\n")
-            with subprocess.Popen(command, cwd=REPO, env=env, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True, errors="replace") as process:
-                for line in process.stdout:
-                    print(line, end="", flush=True)
-                    log.write(line)
-                if process.wait():
-                    raise subprocess.CalledProcessError(process.returncode, command)
+            started = time.monotonic()
+            status = "failed"
+            try:
+                with subprocess.Popen(command, cwd=REPO, env=env, stdout=subprocess.PIPE,
+                                      stderr=subprocess.STDOUT, text=True, errors="replace") as process:
+                    for line in process.stdout:
+                        print(line, end="", flush=True)
+                        log.write(line)
+                    if process.wait():
+                        raise subprocess.CalledProcessError(process.returncode, command)
+                status = "ok"
+            finally:
+                record = {"phase": phase, "command": command, "status": status,
+                          "seconds": round(time.monotonic() - started, 3)}
+                timings.append(record)
+                (evidence / "timings.json").write_text(json.dumps(timings, indent=2) + "\n")
+                message = "TIMING " + json.dumps(record)
+                print(message, flush=True)
+                log.write(message + "\n")
+                log.flush()
 
         revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
         # Linux rebuilds the pinned runtime's game sources with different
@@ -73,9 +99,10 @@ def main():
             game = work / "game"
             run("cmake", "-S", REPO, "-B", game, "-G", "Ninja",
                 "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_C_COMPILER=gcc-13",
-                "-DCMAKE_CXX_COMPILER=g++-13", "-DPT_OPENXR=ON", "-DPT_UPSCALERS=OFF")
+                "-DCMAKE_CXX_COMPILER=g++-13", "-DPT_OPENXR=ON", "-DPT_UPSCALERS=OFF",
+                *cache_args, phase="runtime-configure")
             run("cmake", "--build", game, "--target", "pt", "pt_lisa_date_assets",
-                "--parallel", args.jobs)
+                "--parallel", args.jobs, phase="runtime-build")
             for name in ("pt", "libopenxr_loader.so.1"):
                 shutil.copy2(game / name, runtime / name)
             for name in ("shaders", "fonts", "voice", "lisa_date", "licenses"):
@@ -100,7 +127,8 @@ def main():
 
         configure = ["cmake", "-S", REPO / "launcher", "-B", launcher, "-G", "Ninja",
                      "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX=" + str(stage),
-                     f"-DPT_SUPPORTED_{args.platform.upper()}_SHA256={runtime_hash}"]
+                     f"-DPT_SUPPORTED_{args.platform.upper()}_SHA256={runtime_hash}",
+                     f"-DPT_LAUNCHER_VERSION={args.version}"]
         if args.platform == "windows":
             # Build Qt's zlib dependency with the same dynamic MSVC C runtime.
             source, zlib_build, zlib_install = work / "zlib-source", work / "launcher-zlib", work / "zlib-install"
@@ -123,16 +151,17 @@ def main():
                           "-DZLIB_USE_STATIC_LIBS=ON", "-DZLIB_LIBRARY_RELEASE=" + str(zlib_library)]
         else:
             configure += ["-DCMAKE_CXX_COMPILER=g++-13", "-DPT_SUPPORTED_LINUX_VR=ON"]
-        run(*configure)
-        run("cmake", "--build", launcher, "--parallel", args.jobs)
+        configure += cache_args
+        run(*configure, phase="launcher-configure")
+        run("cmake", "--build", launcher, "--parallel", args.jobs, phase="launcher-build")
         env["QT_QPA_PLATFORM"] = "offscreen"
         run("ctest", "--test-dir", launcher, "--output-on-failure", "--timeout", "90", "-R",
-            "^launcher_(inspection|readiness|session|preparation|preparation_ui|preparation_process|settings|settings_dialog)$")
+            "^launcher_(inspection|readiness|session|preparation|preparation_ui|preparation_process|settings|settings_dialog)$", phase="native-tests")
         shutil.rmtree(stage, ignore_errors=True)
-        run("cmake", "--install", launcher)
+        run("cmake", "--install", launcher, phase="launcher-install")
         run(sys.executable, REPO / "tools/ci/package_launcher_preview.py",
             "--platform", args.platform, "--version", args.version, "--revision", revision,
-            "--runtime-stage", runtime, "--launcher-stage", stage, "--out", args.out.resolve())
+            "--runtime-stage", runtime, "--launcher-stage", stage, "--out", args.out.resolve(), phase="packaging")
 
 
 if __name__ == "__main__":

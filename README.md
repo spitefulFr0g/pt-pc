@@ -1,169 +1,141 @@
-# P.T. for PC
+# P.T. PC portable wrapper
 
-![Lisa in the hallway](docs/media/lisa.gif)
+This repository distributes a lightweight Qt launcher around the native P.T. PC
+runtime by [LoreanXavier](https://github.com/LoreanXavier/pt-pc). The wrapper
+handles game-data preparation, bundle inspection, and launching flat or OpenXR
+VR sessions. It is not an emulator and does not include P.T. game data.
 
-If the port is worth something to you, you can buy me a coffee: [ko-fi.com/loreanxavier](https://ko-fi.com/loreanxavier). It keeps the testing hardware and the releases coming.
+The paired runtime is pinned to upstream
+[v1.0.5](https://github.com/LoreanXavier/pt-pc/releases/tag/v1.0.5), source revision
+`60fe8b324aca24c264e89378ae0d2c61f3a674af`. Windows uses the checksum-pinned
+released executable; Linux rebuilds the unchanged pinned engine source with
+OpenXR enabled and Windows-only upscalers disabled. Each bundle records its
+actual runtime provenance in `runtime-origin.json` and pairs the launcher with
+the executable's SHA-256 hash. Wrapper version **0.1.0** is separate from the
+upstream runtime version.
 
-This is a native PC port of P.T., the 2014 PS4 teaser by Kojima Productions. It is not an emulator. The game logic was
-rebuilt in C++ from the original's behaviour and the renderer is written on Vulkan; every level, model, texture, sound,
-script and cutscene is read at run time from your own copy of the PS4 game. There is no game data in this repository
-and none in the installer.
+## Download and requirements
 
-The port runs on its own engine, Hallway Engine.
+Get the Windows x64 ZIP or Linux x86_64 tar.gz from this fork's
+[Releases](https://github.com/spitefulFr0g/pt-pc/releases). Choose **v0.1.0** for
+the stable wrapper release; tags named `launcher-v…-preview.…` are historical
+previews. Use the checksum sidecar and file inventory supplied with your chosen
+release. These are portable archives, not the upstream setup installers.
 
-I made this in my spare time, with AI tools (see AI Disclosure at the end), because P.T. deserved to keep existing
-somewhere other than on consoles that still have it installed. It plays the whole teaser from the first wake-up to
-the street, with the voice part included.
+You need:
 
-## What you need
+- Windows 10/11 x64, or Linux x86_64 with a desktop session. Linux bundles target
+  Ubuntu 24.04 (glibc 2.39); older distributions and other compositors are not
+  established compatibility targets. This wrapper release has no macOS bundle.
+- A Vulkan 1.3-capable GPU and compatible system graphics driver. Bundled
+  libraries do not replace your graphics driver.
+- Your own supported decrypted P.T. game data: a P.T. fPKG (`.pkg`) or an
+  already extracted dump. The supported identities are US `CUSA01127`, European
+  `CUSA01114`, and Japanese `CUSA01098`; recognition of a region does not prove
+  complete gameplay compatibility. Encrypted retail/store packages cannot be
+  decrypted by this application.
+- A writable destination with enough free space for the extracted archives and
+  temporary preparation files. Keep a backup of your game data and saves.
+- For VR, a compatible installed host OpenXR runtime supporting
+  `XR_KHR_vulkan_enable2`, its graphics driver, and a suitable headset. The
+  wrapper does not install or select system VR services.
 
-- Your own copy of P.T. The port is built and tested with the US release, CUSA01127, as a dump folder from your console
-  or a fake PKG made from that dump. The European and Japanese releases install too, with a note, but I have not seen
-  their data myself. A store PKG cannot be used: it is encrypted for the console that owns it, and nothing here
-  decrypts it.
-- Windows 10 or 11 (x64), Linux x86-64 with glibc 2.38 or newer (Ubuntu 24.04, Debian 13, Fedora 39, current Arch
-  and SteamOS), or macOS 14 or newer on an Apple silicon or Intel Mac.
-- A GPU and driver with Vulkan 1.3; on macOS the port brings MoltenVK, which runs Vulkan on Metal. The optional
-  ray-traced shadows, ambient occlusion and reflections need a GPU with Vulkan ray queries (not on macOS). DLSS needs a
-  GeForce RTX card; FSR and XeSS run on any recent GPU (Windows only). The settings page greys out what your machine
-  cannot run and says why.
-- A microphone for one part of the game, as on the PS4. If you have none, `key = J` under `[voice]` in `pt.ini` lets a
-  key stand in for the spoken word.
+Qt libraries/plugins and the self-contained extraction helper are included;
+no system Qt or .NET SDK is needed to run the bundle.
 
-## Installing
+## Extract, prepare, and play
 
-Download the installer from the Releases page: `P.T.PC.Port.Setup.exe` on Windows, the Linux setup binary on Linux.
-Point it at your dump folder or fake PKG and at a destination folder (the default on Windows is
-`%LocalAppData%\Programs\P.T. PC Port`). It copies the three game archives it needs (`chunk1.psarc`,
-`texture.qar`, `pathid_list_ps4.bin`) next to the port and makes a shortcut if you want one. The eboot, modules and
-system files are not used.
+1. Extract the whole archive into a writable folder. Keep the launcher, platform
+   runtime folder, libraries, and assets together; running inside the archive
+   or copying only the executable will not work.
+2. On Windows, run `pt-launcher.exe` at the archive root. On Linux, run
+   `./pt-launcher` from that root in your desktop session. If extraction lost
+   executable permissions, restore them with `chmod +x pt-launcher`; use an
+   extractor that preserves Unix permissions for the included helper/runtime.
+3. Choose **Choose .pkg and prepare** and select your supported local fPKG.
+   You can also drop a package onto the window or pass its path as the
+   launcher's sole command-line argument. For a decrypted dump, choose
+   **Import extracted game folder**, including a dump's `CUSA01127` folder.
+4. Wait for background preparation and validation to finish. Progress and
+   cancellation are available. The launcher stages and checks the required
+   archives before installing them into the bundle's `CUSA01127` directory.
+   Errors explain unsupported, encrypted, damaged, or unrelated input.
+5. Choose **Play** for flat mode or **Play VR** to request OpenXR VR. Readiness
+   is checked separately for each mode, so missing VR prerequisites leave flat
+   play available. An unknown result may offer **Try Play anyway** or
+   **Try VR anyway**; those actions are attempts, not compatibility guarantees.
 
-Linux: `chmod +x` the setup and run it from a terminal. The game needs only glibc and the system's Vulkan driver. On a Steam Deck
-install from desktop mode and add `pt` as a non-Steam game; it runs on SteamOS as it is.
+Already prepared a portable bundle? Use **Open existing portable bundle** to
+select its root, with game archives under `CUSA01127`. An existing runtime may
+be unverified if it does not match the paired executable hash.
 
-macOS: download `P.T.PC.Port-macOS-arm64.zip` (M1 and later) or `P.T.PC.Port-macOS-x64.zip` (Intel), unzip `P.T. PC Port.app`,
-open it once and allow it under System Settings > Privacy & Security (it is not signed with a Developer ID), then pick your
-dump folder when it asks. A fake PKG has to be extracted on Windows or Linux first. Intel Macs need a GPU that MoltenVK can
-run the renderer on; the port was written without a Mac at hand and the Intel app has not been run on one yet. More in
-docs/macos.md.
+Preparation leaves the original package/dump in place and preserves saves,
+mods, and unrelated destination files. Interrupted preparation is recovered
+when the bundle is reopened. Mutations are guarded while a game session is
+active. Keep the portable directory writable and retain player data when moving
+or replacing a bundle.
 
-The published 1.0.1 release contains setup downloads, not a portable ZIP. The earlier README incorrectly claimed
-a ZIP was available. The setup accepts an already extracted dump folder as well as a fake PKG.
+The upstream runtime supplies the game controls: WASD/mouse to move and look,
+right mouse to zoom, left mouse/Enter/E to interact, Esc to pause, and F10 for
+PC settings. The voice sequence uses a microphone; the upstream `pt.ini`
+`[voice]` setting `key = J` can substitute a key.
 
-This source tree contains the upcoming 1.0.2 changes; its new features and macOS packages are not yet published release
-downloads. On Windows and Linux, 1.0.2 stores settings, saves, logs and cache in `data/` beside the executable and migrates
-existing user data without overwriting newer files. On macOS, these stay in `~/Library/Application Support/pt-port/pt/`.
-The game checks GitHub Releases for a newer version at startup; `[network] check_updates = 0` disables that check.
+## Included components and limits
 
-Thanks to ahm3texe for the Apple silicon port, totsu0jv for Czech translation, and yewhochen for the Linux library-loading
-and startup-focus fixes. Their contributions are incorporated here, with platform and release changes adapted for 1.0.2.
+The archive includes the launcher, paired PC runtime, Qt libraries/plugins,
+platform dependencies, extraction helper, fonts/assets, voice libraries/models,
+OpenXR loader where applicable, licenses/notices, provenance, and file inventory.
+It excludes P.T. game archives, console executables/modules, the upstream
+updater, and upstream loop preview images captured from the game. Users supply
+their own game data. No separate game download is provided here.
 
-## Playing
+Bundles are **unsigned** and have **no secure or automatic wrapper updater**.
+Updates are manual downloads from this fork's Releases page. Extract an update
+separately, preserve your existing player files, and use the launcher's import
+or existing-bundle selection as appropriate; do not overwrite a running game.
+Launcher flat and VR launches pass `--no-update-check`. Upstream in-game updating
+cannot maintain this paired layout and is unsupported; direct runtime launches
+should also pass `--no-update-check`.
 
-Mouse and WASD, right mouse button to zoom, left button, Enter or E to interact, Esc for the pause menu, Alt+Enter for
-fullscreen, F10 for the PC settings. Any gamepad works as the PS4 pad; the button prompts follow whatever you used
-last (keyboard, PlayStation, Xbox or Switch). Vibration follows the original's patterns. The in-game options
-(brightness, subtitles, camera inversion) are the original ones, and as on the PS4 the option screen and the preface
-only play on a first start.
+Native package checks cover Windows/Linux bundle construction and extracted
+launcher startup, checksums, and inventory integrity. They do not establish a
+complete playthrough, physical controller behavior, or headset presentation.
+Gameplay and physical headset presentation remain unverified for this wrapper
+release. An OpenXR readiness probe or successful process start is not proof of
+a connected headset or rendered VR; inspect the game log for fallback details.
+Native Wayland, SteamOS/Hyprland/Gaming Mode, and physical Deck behavior are not
+established by the desktop package checks. See [VR details](docs/vr.md).
 
-## What the port adds
+## Source and build references
 
-Everything below is off or set to the original's behaviour by default. The PS4 look is the baseline; the extras are
-there if you want them.
+The [launcher developer notes](launcher/README.md) document the C++20 Qt Widgets
+target, preparation/session contracts, acceptance commands, and historical
+verification boundaries. Some sections describe earlier preview slices; use the
+chosen release's bundled documentation and inventory for its exact contents.
 
-Display and image
-- Windowed, borderless or exclusive fullscreen, with a selectable render resolution and v-sync on or off. Exclusive
-  fullscreen lists supported display modes; borderless keeps the desktop window and can render at another selected size.
-- Upscalers: AMD FSR 3.1, NVIDIA DLSS 4.5 (with a choice of model) and Intel XeSS, in the usual quality steps or a
-  custom scale, plus native-resolution anti-aliasing (FSR native AA, DLAA).
-- Frame generation: AMD FSR 3 on Radeon RX 5000 or newer, NVIDIA DLSS Frame Generation on RTX 40 or newer.
-- Graphics presets Low, Medium, Original (PS4), High, Ultra and Custom. The individual controls cover shadow map size,
-  ray-traced shadows (sharp like the original or soft), contact shadows, ray-traced ambient occlusion, ray-traced floor
-  reflections, anisotropic filtering, enhanced textures (2x upscaled once from your own files with Real-ESRGAN, cached
-  on disk), film grain, motion blur, depth of field, the original's lens flare ghosts and the curved lens with colour
-  fringing. Each one can go back to the PS4 setting on its own.
+Build the standalone launcher with CMake from `launcher/` and shared Qt 6.12.0;
+this target does not configure or link the engine. The maintained
+`launcher/run-acceptance.sh <evidence-directory>` command builds and runs the
+scoped desktop checks (`QT_QPA_PLATFORM=offscreen` for headless checks).
+[CI packaging tools](tools/ci/) assemble the paired portable distribution.
 
-Extras
-- Photo mode (F7): pause, fly the camera, adjust focal length, focus, aperture, exposure and roll, choose an aspect
-  crop and color filter, then save at native resolution or 4K (3840 pixels on the long edge) to Pictures/PT Photos.
-- Free camera (F6).
-- Loop browser: jump to any loop of the house once you have finished the game.
-- Museum: the game's subliminal images, radio and voice lines with transcripts, photo pieces, cutscenes, models and
-  unused content, as you reach them in play. Pan model exhibits with WASD or the left stick; orbit with arrows or the
-  right stick.
-- Controller feedback: Original vibration is the default. Enhanced adds supported trigger vibration and, on supported
-  wired USB DualSense controllers on Windows, haptics from filtered Lisa cries. The optional controller speaker and
-  its volume are separate from vibration; the main game and headphone mix continue unchanged. Physical controller
-  output still needs hardware validation.
-- Game+: the content a finished game unlocks.
-- Speedrun timer with a split at every loop, real time and game time, personal bests, and a LiveSplit server
-  connection (Control > Start TCP Server in LiveSplit).
-- Third person view (experimental).
-- VR through OpenXR (experimental: I have no headset, so it has only run against a simulated runtime). See
-  docs/vr.md before trying it.
+Engine build references remain available in [Linux](docs/linux.md),
+[macOS](docs/macos.md), [installer](docs/installer.md),
+[upscaling](docs/upscaling.md), [modding](docs/modding.md),
+[Lua API](docs/lua_api.md), and [format notes](docs/formats/).
+Those describe upstream engine capabilities and development workflows; macOS
+and upstream installers are outside this wrapper release. See the
+[upstream project](https://github.com/LoreanXavier/pt-pc) for its current releases
+and engine instructions.
 
-Languages
-- The original's English, French, German, Spanish, Italian, Portuguese and Japanese, plus Turkish, Simplified Chinese,
-  Arabic, Russian, Ukrainian and Czech added by the port: menus, the PC settings and all subtitle lines. Voice audio stays the
-  original English, and the word the microphone listens for is always "Jack".
+## Credit and license
 
-Mods
-- A `mods` folder next to the executable can replace game files, textures and sounds, and run Lua scripts that react
-  to game events. See docs/modding.md and docs/lua_api.md.
+The native port and Hallway Engine are upstream work by LoreanXavier and its
+contributors. P.T. is the work of Kojima Productions and is owned by Konami.
+This project is not affiliated with or endorsed by either organization.
+The shadPS4 developers provided upstream with a reference for original behavior.
 
-## Building from source
-
-Windows: Visual Studio 2022 Build Tools, LLVM (clang-cl), the Vulkan SDK, CMake 3.28 and Ninja. Then
-
-    tools\build_pt.bat release
-
-gives `build\release\pt.exe`. CMake fetches the dependencies (SDL3, zlib, volk, VMA, glm, Dear ImGui, stb, Lua 5.1,
-libogg, libvorbis, whisper.cpp) and downloads the Whisper and Silero models and the upscaler SDK files, each checked by
-SHA-256. A failed SDK download leaves that upscaler out; `-DPT_UPSCALERS=OFF` builds without any. `python
-tools\package.py` turns the build into the portable folder and zip.
-
-Linux: `cmake -G Ninja -B build/linux -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build/linux --target pt`.
-GCC 13 or clang 17, the Vulkan headers and `glslc`. The upscalers are Windows-only SDKs and are left out there.
-`tools/linux/` has the cross build I use from Windows. More in docs/linux.md.
-
-macOS (Apple silicon or Intel, built for the CPU it runs on): the command line tools, then `brew install cmake ninja shaderc
-vulkan-headers vulkan-loader` and `cmake -G Ninja -B build/macos -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build
-build/macos --target pt`. `python3 tools/macos/make_app.py` makes the app bundle and its zip. The upscalers and the VR mode
-are left out there too, and MoltenVK has no ray queries. More in docs/macos.md.
-
-The unit tests are CMake targets (`pt_tests`, `pt_mods_test` and the others in CMakeLists.txt). `python
-tools/walkthrough.py --exe build/release/pt.exe --game <folder>` plays the whole game without a window through the
-scripted routes in `tests/walkthrough/` and checks the log; it is how I make sure a change did not break a loop.
-
-The installer is `installer/`: a native C++ setup (`pt_setup`, built when a payload exists) and a small LGPL extraction
-helper in C# that reads fake PKGs with LibOrbisPkg. docs/installer.md describes how it decides what it accepts.
-
-Other docs: docs/upscaling.md, docs/vr.md, docs/updates.md, and the file format notes in docs/formats/ that came out of
-reverse engineering the game data, with the tools in tools/ that read those formats.
-
-## Thanks
-
-P.T. is the work of Kojima Productions and is owned by Konami. This project is not affiliated with, endorsed by or
-connected to either of them. It contains none of their assets and does nothing without your own copy of the game.
-
-The shadPS4 emulator was my reference for how the original behaves on the PS4 and for checking the port's frames
-against it. Thanks to its developers.
-
-The port is built on SDL3, Vulkan (volk, VMA), glm, Dear ImGui, stb, Lua 5.1, libogg and libvorbis, whisper.cpp with
-OpenAI's Whisper model and the Silero VAD for the voice part, Real-ESRGAN with ncnn for the enhanced textures, AMD
-FidelityFX, NVIDIA DLSS and Intel XeSS for the upscalers, the Khronos OpenXR loader for VR, HarfBuzz on Linux and the
-Noto fonts for the added languages, and LibOrbisPkg in the installer. Their notices ship in `licenses/` next to the
-executable.
-
-## License
-
-The port's own code is under the MIT license (see LICENSE). The third-party pieces listed above keep their own
-licenses.
-
-## AI Disclosure
-
-AI coding tools were used in developing and debugging this port. My focus has been on matching the original P.T.:
-comparing builds with PS4 references, identifying discrepancies, testing gameplay and prioritizing fixes.
-
-The project uses the original game assets from the player's own PS4 copy. Optional enhanced textures use
-machine-learning upscaling on existing textures.
+Project code is under the [MIT license](LICENSE). Bundled third-party components
+retain their own licenses; consult the shipped notices, including Qt and the
+extraction helper's LGPL material and corresponding-source information.
+AI coding tools were used in developing and debugging the port and wrapper.
