@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" pt_launcher_source_version LIMIT_COUNT 1)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/launcher-version.txt" pt_launcher_source_version LIMIT_COUNT 1)
 project(pt_launcher VERSION ${pt_launcher_source_version} LANGUAGES CXX)
 set(PT_LAUNCHER_VERSION "${PROJECT_VERSION}" CACHE STRING "Portable launcher release identity")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/launcher-version.txt" "${PT_LAUNCHER_VERSION}\n")

@@ -40,7 +40,7 @@ upstream release's declared provenance without asserting that its archive's
 build label is a published source commit.
 
 Run **Launcher portable release** manually on the exact source commit, choosing
-an unused stable or preview version. `launcher/VERSION` pins the source base version
+an unused stable or preview version. `launcher/launcher-version.txt` pins the source base version
 (currently `0.1.0`); stable input must match it, and previews use that base plus
 `-preview.N`. Blank input defaults to a preview numbered by the workflow run. For example:
 
