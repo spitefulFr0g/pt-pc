@@ -52,6 +52,26 @@ gh workflow run launcher-preview.yml --repo spitefulFr0g/pt-pc \
 Ordinary pull requests run the single Windows/Linux matrix and retain bundles
 and evidence as Actions artifacts without creating a release. Qt and the pinned
 upstream archives are cached; archive hashes are rechecked on every build.
+Linux game and launcher compilation optionally use ccache (`CCACHE_DIR` enables it
+for local builds; ccache must then be installed). CI bounds its separate compiler
+cache to 2 GB, checks compiler contents, and normalizes checkout paths. Restore
+falls back to the latest compatible compiler cache; each successful input/run
+saves a new snapshot so changed sources accumulate. No whole CMake build directory
+is cached. The first fill is cold: PR caches are scoped to `refs/pull/.../merge`
+and cannot seed main, so main also needs its own first cold fill. See the
+[GitHub cache scope rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
+and [ccache configuration](https://ccache.dev/manual/4.9.1.html).
+Superseded PR runs cancel automatically; manual release runs do not.
+
+The successful Linux baseline (run 39081550859) spent 695.41 seconds building
+1024 game targets, about 84 seconds building the launcher, and 13.73 seconds in
+CTest. Download caches did not reuse compiler results. Compiler caching is an
+optimization; its hosted cold/warm improvement and the 120-second warm runtime
+budget remain unmeasured. Parallelism stays at two jobs. Integrity checks, native
+tests, and extracted-package startup checks still run. `evidence/timings.json`
+and `build.log` record command phase durations and failures; the job summary and
+`ccache-stats.txt` expose cache hits/misses even after build failure.
+
 Both platform jobs must build and smoke-check successfully before an explicitly
 requested manual run creates an unpublished draft. Stable `0.1.0` uses exact tag
 `v0.1.0` with prerelease disabled; previews retain `launcher-vX.Y.Z-preview.N`

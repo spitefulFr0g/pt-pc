@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: launcher-preview-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   metadata:
@@ -42,7 +42,7 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: python3 tools/ci/launcher_release.py --version "$REQUESTED_VERSION"
       - name: Check stable and preview contracts
-        run: python3 -m unittest discover -s tools/ci -p 'test_launcher_release.py' -v
+        run: python3 -m unittest discover -s tools/ci -p 'test_*launcher*.py' -v
 
   bundle:
     needs: metadata
@@ -77,13 +77,35 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build g++-13 zlib1g-dev patchelf \
+          sudo apt-get install -y ccache ninja-build g++-13 zlib1g-dev patchelf \
             libvulkan-dev glslc libgl1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev \
             libx11-dev libxcursor-dev libxext-dev libxi-dev libxrandr-dev libxinerama-dev \
             libxfixes-dev libxss-dev libxtst-dev libdbus-1-dev libdrm-dev libgbm-dev \
             libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             xvfb xauth xdotool openbox
+      - name: Identify Linux compiler cache
+        if: runner.os == 'Linux'
+        id: compiler-cache
+        run: |
+          echo "CCACHE_DIR=$RUNNER_TEMP/launcher-ccache" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=2G" >> "$GITHUB_ENV"
+          echo "CCACHE_COMPILERCHECK=content" >> "$GITHUB_ENV"
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          fingerprint=$(sha256sum /usr/bin/gcc-13 /usr/bin/g++-13 /usr/bin/ccache | sha256sum | cut -d ' ' -f 1)
+          echo "prefix=launcher-ccache-v1-${RUNNER_OS}-${RUNNER_ARCH}-${fingerprint}" >> "$GITHUB_OUTPUT"
+      - name: Restore Linux compiler cache
+        if: runner.os == 'Linux'
+        id: ccache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/launcher-ccache
+          key: ${{ steps.compiler-cache.outputs.prefix }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.compiler-cache.outputs.prefix }}-
+      - name: Reset Linux compiler cache statistics
+        if: runner.os == 'Linux'
+        run: ccache --zero-stats
       - name: Cache pinned Qt SDK
         id: qt-cache
         uses: actions/cache@v4
@@ -133,6 +155,30 @@ jobs:
         run: |
           python tools/ci/smoke_launcher_preview.py --platform "$PREVIEW_PLATFORM" \
             --artifacts dist/launcher-preview --evidence build/launcher-preview/evidence/package
+      - name: Save successful Linux compiler cache
+        if: success() && runner.os == 'Linux'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/launcher-ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
+      - name: Summarize build timings and compiler cache
+        if: always()
+        run: |
+          mkdir -p build/launcher-preview/evidence
+          if [ "$RUNNER_OS" = Linux ] && command -v ccache >/dev/null; then
+            ccache --show-stats --verbose | tee build/launcher-preview/evidence/ccache-stats.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          timing = Path('build/launcher-preview/evidence/timings.json')
+          if timing.exists():
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write('\nBuild phase timings (seconds):\n\n')
+                  for row in json.loads(timing.read_text()):
+                      summary.write(f"- {row['phase']}: {row['seconds']:.3f} ({row['status']})\n")
+          PY
       - name: Retain build and packaged startup evidence
         if: always()
         uses: actions/upload-artifact@v7
