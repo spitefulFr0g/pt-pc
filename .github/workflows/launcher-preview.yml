@@ -1,4 +1,4 @@
-name: Launcher preview
+name: Launcher portable release
 
 on:
   pull_request:
@@ -11,11 +11,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Preview version (blank uses 0.1.0-preview.RUN_NUMBER)'
+        description: 'Stable X.Y.Z or X.Y.Z-preview.N (blank uses source version-preview.RUN_NUMBER)'
         type: string
         default: ''
       create_draft:
-        description: Attach both tested bundles to a new draft prerelease
+        description: Attach both tested bundles to a new unpublished draft release
         type: boolean
         default: true
 permissions:
@@ -30,20 +30,19 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - name: Validate preview version
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Validate release identity
         id: version
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
-        run: |
-          python3 - <<'PY'
-          import os, re
-          version = os.environ['REQUESTED_VERSION'] or '0.1.0-preview.' + os.environ['GITHUB_RUN_NUMBER']
-          if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+', version):
-              raise SystemExit('Use a version such as 0.1.0-preview.1')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f'version={version}\n')
-          PY
+        run: python3 tools/ci/launcher_release.py --version "$REQUESTED_VERSION"
+      - name: Check stable and preview contracts
+        run: python3 -m unittest discover -s tools/ci -p 'test_launcher_release.py' -v
 
   bundle:
     needs: metadata
@@ -162,10 +161,12 @@ jobs:
           pattern: launcher-preview-bundle-*
           merge-multiple: true
           path: release-assets
-      - name: Create an unpublished draft prerelease
+      - name: Create an unpublished draft release
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIEW_VERSION: ${{ needs.metadata.outputs.version }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
         run: |
           set -euo pipefail
           # Build evidence is retained separately; only immutable package files are attached.
@@ -173,15 +174,15 @@ jobs:
           test "$(find release-assets -maxdepth 1 -name '*windows*.zip' | wc -l)" -eq 1
           test "$(find release-assets -maxdepth 1 -name '*linux*.tar.gz' | wc -l)" -eq 1
           cat > notes.md <<EOF
-          Portable Windows x64 and native Linux x86_64 previews of the current launcher and matching game runtime.
+          Portable Windows x64 and native Linux x86_64 bundles of the current launcher and matching game runtime.
 
-          Select your supported P.T. fPKG, prepare it, then choose Play or Play VR. No separate extraction or system .NET SDK is needed. These unsigned portable previews preserve existing extracted-folder adoption. VR requires a compatible host OpenXR runtime; process startup does not establish headset presentation.
+          Select your supported P.T. fPKG, prepare it, then choose Play or Play VR. No separate extraction or system .NET SDK is needed. These unsigned portable bundles preserve existing extracted-folder adoption. VR requires a compatible host OpenXR runtime; process startup does not establish headset presentation.
 
-          Supply your own game archives using the included instructions. CI checks compilation and extracted-package startup; gameplay and hardware testing remain pending.
+          Supply your own game archives using the included instructions. CI checks compilation and extracted-package startup; gameplay and hardware testing remain unverified. Updates are manual: download and extract a new bundle; preserve your game data.
 
           Source commit: $GITHUB_SHA
           Build and startup evidence: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           EOF
-          gh release create "launcher-v$PREVIEW_VERSION" "${assets[@]}" \
+          gh release create "$RELEASE_TAG" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Launcher $PREVIEW_VERSION" --notes-file notes.md --draft --prerelease
+            --title "Launcher $PREVIEW_VERSION" --notes-file notes.md --draft --prerelease="$PRERELEASE"

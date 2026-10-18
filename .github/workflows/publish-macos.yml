@@ -26,6 +26,8 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          # Wrapper releases never carry upstream macOS packages.
+          [[ "$TAG" != launcher-v* && "$TAG" != v0.1.0 ]]
           test "$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
           build_sha="$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)"
           tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)"

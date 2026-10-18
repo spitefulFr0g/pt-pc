@@ -13,6 +13,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from launcher_release import identity, bundle_name
+
 REPO = Path(__file__).resolve().parents[2]
 EXCLUDED_LINUX = re.compile(r"^(lib(c|m|pthread|dl|rt|resolv|util|nss_.*|anl)\.so|ld-linux|linux-vdso)")
 FORBIDDEN = {"chunk1.psarc", "texture.qar", "pathid_list_ps4.bin", "pt-updater", "pt-updater.exe"}
@@ -179,7 +181,8 @@ def main():
     parser.add_argument("--version", required=True)
     parser.add_argument("--revision", required=True)
     args = parser.parse_args()
-    require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", args.version), "invalid version")
+    release = identity(args.version)
+    preview = release["channel"] == "preview"
     require(re.fullmatch(r"[0-9a-fA-F]{7,40}", args.revision), "revision must be a git hash")
     runtime_stage = args.runtime_stage.resolve()
     launcher_build = args.launcher_build.resolve() if args.launcher_build else None
@@ -193,11 +196,11 @@ def main():
     runtime_sha = digest(executable)
     origin = json.loads((runtime_stage / "runtime-origin.json").read_text(encoding="utf-8"))
     require(origin["executable_sha256"] == runtime_sha, "staged runtime differs from upstream origin record")
-    name = f"pt-launcher-preview-{args.version}-{args.platform}"
+    archive_root = bundle_name(args.version, args.platform)
     suffix = ".zip" if args.platform == "windows" else ".tar.gz"
     args.out.mkdir(parents=True, exist_ok=True)
-    archive = args.out / (name + suffix)
-    external_inventory = args.out / (name + "-inventory.json")
+    archive = args.out / (archive_root + suffix)
+    external_inventory = args.out / (archive_root + "-inventory.json")
     sidecar = archive.with_name(archive.name + ".sha256")
     for output in (archive, external_inventory, sidecar):
         require(not output.exists(), f"output exists: {output}")
@@ -207,8 +210,10 @@ def main():
         if launcher_build:
             stage = scratch / "stage"
             subprocess.run(["cmake", "--install", str(launcher_build), "--prefix", str(stage)], check=True)
-        root = scratch / name
+        root = scratch / archive_root
         shutil.copytree(stage, root)
+        require((root / "launcher-version.txt").read_text().strip() == args.version,
+                "installed launcher version differs from package version")
         hashes = root / "supported-runtime-sha256.txt"
         require(hashes.is_file(), f"missing installed launcher hash record {hashes}")
         configured = dict(line.split("=", 1) for line in hashes.read_text(encoding="ascii").splitlines() if "=" in line)
@@ -257,9 +262,9 @@ def main():
                 REPO / "tools/ci/licenses" / name) if candidate.is_file()), None)
             require(source, f"Qt license text missing: {name}")
             shutil.copy2(source, qt_notices / name)
-        (root / "README-preview.md").write_text(
-            "# Portable launcher preview\n\n"
-            "Extract this unsigned test bundle and start `pt-launcher.exe` (Windows) "
+        (root / ("README-preview.md" if preview else "README-launcher.md")).write_text(
+            f"# Portable launcher {release['channel']} {args.version}\n\n"
+            "Extract this unsigned portable bundle and start `pt-launcher.exe` (Windows) "
             "or `./pt-launcher` (Linux). Use **Game files** to select your P.T. `.pkg`, "
             "or drop it onto the launcher. The launcher prepares the archives inside "
             "this bundle and enables **Play** when ready. You can also choose "
@@ -269,17 +274,18 @@ def main():
             "The original source stays in place. "
             "PlayFlat disables upstream update checks. If you start the game runtime "
             "directly, pass `--no-update-check`; upstream in-game updates are not "
-            "supported for this mixed preview bundle. Choose **Play** for flat mode or **Play VR** to request VR. "
+            "supported for this paired bundle. Choose **Play** for flat mode or **Play VR** to request VR. "
             "A compatible graphics driver and host OpenXR runtime are required for VR; "
             "the launcher does not configure system VR services. Missing VR prerequisites "
             "leave flat play available. Headset presentation and gameplay need "
-            "manual testing. See `PREVIEW-NOTICES.md` for source and licenses.\n",
+            "manual testing. Updates are manual: download and extract a new bundle, preserving your game data. "
+            f"See `{'PREVIEW-NOTICES.md' if preview else 'NOTICES.md'}` for source and licenses.\n",
             encoding="utf-8")
-        (root / "PREVIEW-NOTICES.md").write_text(
-            f"# Unsigned portable preview\n\n"
-            f"This test bundle contains the pt-pc launcher from revision {args.revision} "
+        (root / ("PREVIEW-NOTICES.md" if preview else "NOTICES.md")).write_text(
+            f"# Unsigned portable {release['channel']}\n\n"
+            f"This portable bundle contains the pt-pc launcher from revision {args.revision} "
             "and the runtime described in the platform's runtime-origin.json (Linux is rebuilt with OpenXR; Windows uses pinned v1.0.5). "
-            "It is unsigned and has no secure updater or automatic preview update path. "
+            "It is unsigned and has no secure updater or automatic update path. "
             "Game archives are supplied by the player.\n\n"
             f"Qt {qt_version(qt)} shared libraries and plugins are included under the "
             "[Qt LGPLv3 terms](https://www.qt.io/terms-conditions/#licenses). "
@@ -306,11 +312,12 @@ def main():
                         f"development file in preview: {relative}")
         files = [{"path": p.relative_to(root).as_posix(), "size": p.stat().st_size, "sha256": digest(p)}
                  for p in sorted(root.rglob("*")) if p.is_file()]
-        inventory = {"format": 1, "kind": "unsigned-portable-preview", "platform": args.platform,
+        inventory = {"format": 1, "kind": "unsigned-portable-preview" if preview else "unsigned-portable-stable",
+                     "channel": release["channel"], "tag": release["tag"], "platform": args.platform,
                      "version": args.version, "revision": args.revision, "qt_version": qt_version(qt),
                      "runtime_origin": origin,
                      "runtime_source_sha256": runtime_sha, "supported_runtime_sha256": runtime_sha, "files": files}
-        (root / "preview-inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+        (root / ("preview-inventory.json" if preview else "launcher-inventory.json")).write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
         pending_inventory = scratch / external_inventory.name
         pending_archive = scratch / archive.name
         pending_sidecar = scratch / sidecar.name
@@ -319,10 +326,10 @@ def main():
             with zipfile.ZipFile(pending_archive, "w", zipfile.ZIP_DEFLATED) as output:
                 for path in sorted(root.rglob("*")):
                     if path.is_file():
-                        output.write(path, Path(name) / path.relative_to(root))
+                        output.write(path, Path(archive_root) / path.relative_to(root))
         else:
             with tarfile.open(pending_archive, "w:gz") as output:
-                output.add(root, arcname=name)
+                output.add(root, arcname=archive_root)
         pending_sidecar.write_text(f"{digest(pending_archive)}  {archive.name}\n", encoding="ascii")
         for pending, final in ((pending_inventory, external_inventory),
                                (pending_sidecar, sidecar), (pending_archive, archive)):
