@@ -96,6 +96,10 @@ class ReleaseContractTest(unittest.TestCase):
                 with zipfile.ZipFile(archive) as zipped:
                     self.assertTrue(all(p.startswith(name + '/') for p in zipped.namelist()))
                     inventory_name = 'preview-inventory.json' if '-preview.' in version else 'launcher-inventory.json'
+                    readme_name = 'README-preview.md' if '-preview.' in version else 'README-launcher.md'
+                    readme = zipped.read(name + '/' + readme_name).decode('utf-8')
+                    self.assertIn('**Choose .pkg and prepare**', readme)
+                    self.assertNotIn('**Game files**', readme)
                     internal = zipped.read(name + '/' + inventory_name)
                     self.assertEqual(internal, (out / (name + '-inventory.json')).read_bytes())
                     data = json.loads(internal)

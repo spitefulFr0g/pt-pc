@@ -265,7 +265,7 @@ def main():
         (root / ("README-preview.md" if preview else "README-launcher.md")).write_text(
             f"# Portable launcher {release['channel']} {args.version}\n\n"
             "Extract this unsigned portable bundle and start `pt-launcher.exe` (Windows) "
-            "or `./pt-launcher` (Linux). Use **Game files** to select your P.T. `.pkg`, "
+            "or `./pt-launcher` (Linux). Use **Choose .pkg and prepare** to select your P.T. `.pkg`, "
             "or drop it onto the launcher. The launcher prepares the archives inside "
             "this bundle and enables **Play** when ready. You can also choose "
             "**Import extracted game folder** for an existing decrypted dump. "
