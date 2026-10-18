@@ -2,7 +2,7 @@
 
 ## Import your game
 
-Extract the portable preview and run `pt-launcher.exe` on Windows or
+Extract the portable bundle and run `pt-launcher.exe` on Windows or
 `./pt-launcher` on Linux. The application automatically finds its bundled
 runtime. Choose **Choose .pkg and prepare**, drop a local package onto the
 window, or pass its path as the launcher's sole command-line argument. Use
@@ -19,7 +19,7 @@ staged and checked before installation, while saves, mods and unrelated files
 are preserved. Interrupted preparation is recovered when the bundle is opened.
 When preparation succeeds, choose **Play**.
 
-## Unsigned paired preview bundles
+## Unsigned paired portable bundles
 
 The pull-request and manual workflow builds the current launcher natively with shared Qt 6.12.0
 and pairs it with the pinned upstream v1.0.5 assets and Windows runtime. Linux rebuilds the unchanged engine source with `PT_OPENXR=ON` and `PT_UPSCALERS=OFF`, staging the matching shaders, fonts, voice libraries/models, OpenXR loader and notices. The Windows
@@ -39,22 +39,26 @@ download URL, archive checksum, and executable checksum. This records the
 upstream release's declared provenance without asserting that its archive's
 build label is a published source commit.
 
-Run **Launcher preview** manually on the `integration/launcher` branch, choosing
-an unused preview version. For example:
+Run **Launcher portable release** manually on the exact source commit, choosing
+an unused stable or preview version. `launcher/VERSION` pins the source base version
+(currently `0.1.0`); stable input must match it, and previews use that base plus
+`-preview.N`. Blank input defaults to a preview numbered by the workflow run. For example:
 
 ```sh
 gh workflow run launcher-preview.yml --repo spitefulFr0g/pt-pc \
-  --ref integration/launcher -f version=0.1.0-preview.2 -f create_draft=true
+  --ref main -f version=0.1.0-preview.2 -f create_draft=true
 ```
 
 Ordinary pull requests run the single Windows/Linux matrix and retain bundles
 and evidence as Actions artifacts without creating a release. Qt and the pinned
 upstream archives are cached; archive hashes are rechecked on every build.
 Both platform jobs must build and smoke-check successfully before an explicitly
-requested manual run creates an unpublished draft prerelease. Download its
+requested manual run creates an unpublished draft. Stable `0.1.0` uses exact tag
+`v0.1.0` with prerelease disabled; previews retain `launcher-vX.Y.Z-preview.N`
+and prerelease enabled. Download its
 Windows ZIP and Linux tar.gz for testing. Publication is a separate user action. No signing secret is needed. Build evidence
 and temporary Actions artifacts are retained for 14 days; draft release assets
-remain attached to the release. The launcher preview tag does not trigger the
+remain attached to the release. Wrapper preview tags and `v0.1.0` do not trigger the
 separate macOS game packaging workflow.
 
 For a local build with the same dependencies and Qt prefix as CI:
@@ -85,13 +89,20 @@ does not embed the exact runtime hash.
 
 The archive has `windows/pt.exe` or `linux/pt`, the launcher at its root
 (`pt-launcher.exe` on Windows or a `pt-launcher` entry script on Linux), Qt
-libraries/plugins, assets, licenses, and `preview-inventory.json`. The Linux
+libraries/plugins, assets, licenses, and `launcher-inventory.json` for stable
+(`preview-inventory.json` for preview). Stable filenames are
+`pt-launcher-0.1.0-windows.zip` and `pt-launcher-0.1.0-linux.tar.gz`; preview
+filenames retain `pt-launcher-preview-X.Y.Z-preview.N-PLATFORM`. Both inventories
+include version, channel, tag and source revision, and `launcher-version.txt`
+records the configured launcher version. Packaging and smoke checks reject identity mismatches. The Linux
 script changes no global Qt or library environment. Game launches remove inherited `LD_LIBRARY_PATH` and `LD_PRELOAD`, retain host OpenXR registration, and use bundle-local `$ORIGIN` libraries. The runtime staging command
 removes the upstream updater, stale runtime file list, and loop preview images
-captured from the original game. No game archives are included. These bundles are unsigned manual tests;
+captured from the original game. No game archives are included. These bundles are unsigned; updates require manually downloading and extracting
+a new bundle while preserving game data.
 PlayFlat passes `--no-update-check`, and upstream in-game updating is
 unsupported for this mixed bundle. Direct runtime launches should also pass
-`--no-update-check`. The archive includes `README-preview.md`, the project
+`--no-update-check`. Stable archives include `README-launcher.md` and `NOTICES.md`; previews retain
+`README-preview.md` and `PREVIEW-NOTICES.md`. Both include the project
 license, Qt LGPL/GPL exception texts, and runtime and platform dependency
 notices.
 

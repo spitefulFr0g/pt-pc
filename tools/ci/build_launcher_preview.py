@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from fetch_launcher_preview_runtime import RELEASE_SOURCE_REVISION
+from launcher_release import identity
 
 REPO = Path(__file__).resolve().parents[2]
 ZLIB_REVISION = "da607da739fa6047df13e66a2af6b8bec7c2a498"  # zlib 1.3.2
@@ -29,6 +30,7 @@ def main():
         parser.error("Build each launcher natively on its corresponding runner")
     if platform.machine().lower() not in ("amd64", "x86_64") or args.jobs < 1:
         parser.error("Use an x86_64 host and a positive --jobs count")
+    identity(args.version)
     work = args.work.resolve()
     evidence = work / "evidence"
     evidence.mkdir(parents=True, exist_ok=True)
@@ -100,7 +102,8 @@ def main():
 
         configure = ["cmake", "-S", REPO / "launcher", "-B", launcher, "-G", "Ninja",
                      "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX=" + str(stage),
-                     f"-DPT_SUPPORTED_{args.platform.upper()}_SHA256={runtime_hash}"]
+                     f"-DPT_SUPPORTED_{args.platform.upper()}_SHA256={runtime_hash}",
+                     f"-DPT_LAUNCHER_VERSION={args.version}"]
         if args.platform == "windows":
             # Build Qt's zlib dependency with the same dynamic MSVC C runtime.
             source, zlib_build, zlib_install = work / "zlib-source", work / "launcher-zlib", work / "zlib-install"
